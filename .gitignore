@@ -1,0 +1,5 @@
+.DS_Store
+doc/*.dvi
+doc/*.synctex.gz
+doc/*.pdf
+doc/*.xdv

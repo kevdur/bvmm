@@ -1,0 +1,142 @@
+%===============================================================================
+% Finding Significant Subsequences
+% Kevin Durant
+% March 2019
+%===============================================================================
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{mathtools}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else
+  \usepackage{unicode-math}
+\fi
+\usepackage{hyperref}
+
+% Custom maths commands %=======================================================
+
+\newcommand\ds{\displaystyle}                 % large maths.
+\newcommand\ts{\textstyle}                    % small maths.
+\newcommand\mb[1]{\mathbb{#1}}                % mathbb shorthand.
+\newcommand\mc[1]{\mathcal{#1}}               % mathcal shorthand.
+\newcommand\ub[1]{\symbf{#1}}                 % unicode-math symbf shorthand.
+\newcommand\ff[1]{^{\underline{#1}}}          % falling factorial.
+\newcommand\rf[1]{^{\overline{#1}}}           % rising factorial.
+\newcommand\ul[1]{\underline{#1}}             % underline.
+\newcommand\ol[1]{\overline{#1}}              % overline.
+\DeclareMathOperator\Pb{P}                    % probability.
+\DeclareMathOperator\Ex{E}                    % expected value.
+\DeclareMathOperator\Va{V}                    % variance.
+\DeclarePairedDelimiter\lr{\lparen}{\rparen}  % sized parentheses.
+\DeclarePairedDelimiter\lrb{\lbrack}{\rbrack} % sized brackets.
+\DeclarePairedDelimiter\abs{\lvert}{\rvert}   % absolute value symbol.
+\DeclarePairedDelimiter\cl{\lceil}{\rceil}    % ceiling symbol.
+\DeclarePairedDelimiter\fl{\lfloor}{\rfloor}  % floor symbol.
+
+% Title %=======================================================================
+
+\title{Finding Significant Subsequences}
+\author{Kevin Durant}
+\date{March 2019}
+
+% Document %====================================================================
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction} %========================================================
+
+A year or two ago, while working on a problem involving temporal communication
+networks (in which the underlying edge events are all timestamped, and thus
+ordered), a peripheral question arose that seemed worth trying to answer:
+\textit{are there any directed paths within the network that are particularly
+predictable?} Phrased another way: \textit{are there nodes in the network whose
+outgoing edges can be predicted based on their most recent incoming edges? And
+to what depth?}
+
+Dependencies such as these are interesting in the context of communication
+networks because they point to the presence of certain message-passing `chains'.
+For example, it might be the case that whenever a node~$B$'s most recent
+incoming message originated at node~$A$, the next message sent by~$B$ is likely
+to be to some third node~$C$. If this is not the usual behaviour for messages
+sent from~$B$, then the distribution of its outgoing edges is conditionally
+dependent on its last incoming edge. We are interested in determing, for a given
+network, to what extent---if any---this dependence holds. And specifically: with
+respect to which nodes, which incoming edges, and to what depth.
+
+The problem can also be stated without the need for network terminology, for
+with a bit of thought one sees (Section~\ref{sec:templ soc netw}) that each
+uninterrupted path within a temporal network can also be represented as a
+sequence of nodes, and thus simply as a string of symbols~$x_1 x_2 \dots x_N$.
+The objective then is to find substrings~$x_{n-k} \dots x_{n-1}$ that allow the
+next symbol~$x_n$ to be predicted (to some extent), for we can then
+regard~$x_{n-1}$ as conditionally dependent on the depth~$k-1$ substring for the
+purpose of predicting the symbol~$x_n$ that follows it.
+
+It is perhaps worth mentioning here that we are not interested in dependence on
+any sort of transformed substring
+
+The obvious probabilistic framework to adopt when approaching this problem is
+that of Markov chains, however it's worth emphasising the fact that our interest
+is not so much in modelling the outgoing edge distribution of each node to some
+depth for the purposes of prediction, but rather in pruning the set of all
+Markov states until only those that are truly useful for prediction of their
+next edge remain.
+
+on a per-case basis, whether the Markov assumption is a reasonable one; and to
+what order in each case. Since independence from any directly preceding symbols
+can be viewed as a Markov property of order zero, we can find significant
+subsequences by assuming the Markov property throughout, and asking what order
+is most likely in each case.
+
+
+
+
+
+It would be interesting (in our humble opinion) to
+know edge to terminate at~$B$ node~$B$'s incoming edges is~$A \longrightarrow
+B$, and the next edge involving~$B$ is~$B \longrightarrow C$, then 
+
+With regard to the second phrasing of the question above, it's worth emphasising
+the use of the phrase `certain the fact that we are not trying to answer the question of whether a given node's
+incoming edges are significant \emph{in general}, but rather \emph{which} of its
+incoming neighbours (if any) are useful for prediction, in what way, and to what
+depth.
+
+
+\textit{are certain directed paths
+within the network more predictable than others?} Or, phrased another way:
+\textit{are there sequences of edges that reliably determine the edges that
+follow them?} In essence, we were curious to know whether there were elements of
+the data that could be said to be strongly influenced by those that directly
+preceded them; and if so, to determine these elements algorithmically.
+
+Of course the social networks that sparked the search for repetitive were simply
+a particular (and convenient) way of viewing a set of sequential data---any
+sequence of symbols from a given alphabet can be viewed in the same way. So the
+above question should really be phrased with respect to arbitrary sequences
+instead: assuming that the Markov property holds for 
+
+\section{Methodology} %=========================================================
+
+\subsection{Variable-order Markov models} %=====================================
+
+\subsection{Sampling over the model space} %====================================
+
+\section{Applications} %========================================================
+
+\subsection{Synthetic data}\label{sec:synth dat} %==============================
+
+\subsection{Text data}\label{sec:text dat} %====================================
+
+\subsection{Temporal social networks}\label{sec:templ soc netw} %===============
+
+\subsection{Genetic data}\label{sec:genet dat} %================================
+
+\section{Implementation notes} %================================================
+
+\end{document}
