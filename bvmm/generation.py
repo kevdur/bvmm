@@ -17,11 +17,12 @@ def rand_tree(n, alphabet, alpha):
         alpha: the 'concentration' vector that is used to parameterise the
             Dirichlet distribution from which the nodes' counts are sampled.
     '''
+    opts = tree.Options(False, height_step=1)
     root = tree.create_tree(0, alphabet)
     _rand_counts(root, alpha)
     for i in range(n):
         v = tree.attachment(root, np.random.randint(0, root.attachment_count))
-        tree.activate(v, [], alphabet, False, 1)
+        tree.activate(v, [], alphabet, opts)
         _rand_counts(v, alpha)
     return root
 

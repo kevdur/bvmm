@@ -54,29 +54,30 @@ def mcmc(data, alphabet, alpha, samples, prior='uniform', complete=False,
         that generated the data.
     '''
     counts = Counts()
+    opts = tree.Options(complete, fringe, height_step, min_skip_prob)
     lpr = likelihood.prior_function(prior)
     root = tree.create_tree(height_step, alphabet)
     tree.initialise_counts(root, data, alphabet)
-    tree.activate(root, data, alphabet, complete, height_step)
+    tree.activate(root, data, alphabet, opts)
+
     for s in range(samples):
         nc, ac = root.node_count, root.attachment_count
-        birth_move, death_move = _move_probs(nc, ac, complete, min_skip_prob)
+        birth_move, death_move = _move_probs(nc, ac, opts)
         m = np.random.rand()
         if m < birth_move:
             counts.birth_attempts += 1
-            if _birth(root, data, alphabet, alpha, lpr, complete, height_step, min_skip_prob):
+            if _birth(root, data, alphabet, alpha, lpr, opts):
                 counts.births += 1
         elif m < birth_move + death_move:
             counts.death_attempts += 1
-            if _death(root, alpha, lpr, complete, min_skip_prob):
+            if _death(root, alpha, lpr, opts):
                 counts.deaths += 1
         else:
             counts.skips += 1
-        tree.update_sample_counts(root, 1, complete=complete, fringe=fringe)
+        tree.update_sample_counts(root, 1, opts=opts)
     return root, counts
 
-def _birth(root, data, alphabet, alpha, lprior_ratio, complete=False,
-        height_step=1, min_skip_prob=1/3):
+def _birth(root, data, alphabet, alpha, lprior_ratio, opts=tree.Options()):
     '''
     Attempts a birth move, returning true if the move was accepted.
     '''
@@ -85,26 +86,25 @@ def _birth(root, data, alphabet, alpha, lprior_ratio, complete=False,
     # but it is necessary, since we require counts that might only be available
     # after the node's children have been initialised (during activation).
     v = tree.attachment(root, np.random.randint(root.attachment_count))
-    tree.activate(v, data, alphabet, complete, height_step)
-    death_prob = _death_prob(root, alpha, lprior_ratio, complete, min_skip_prob)
+    tree.activate(v, data, alphabet, opts)
+    death_prob = _death_prob(root, alpha, lprior_ratio, opts)
     if np.random.rand() > 1/death_prob:
         tree.deactivate(v)
         return False
     return True
 
-def _death(v, root, alpha, lprior_ratio, complete, min_skip_prob=1/3):
+def _death(v, root, alpha, lprior_ratio, opts=tree.Options()):
     '''
     Attempts a death move, returning true if the move was accepted.
     '''
     v = tree.leaf(root, np.random.randint(root.leaf_count))
-    death_prob = _death_prob(root, alpha, lprior_ratio, complete, min_skip_prob)
+    death_prob = _death_prob(root, alpha, lprior_ratio, opts)
     if np.random.rand() <= death_prob:
         tree.deactivate(v)
         return True
     return False
 
-def _death_prob(v, root, alpha, lprior_ratio, complete=False,
-        min_skip_prob=1/3):
+def _death_prob(v, root, alpha, lprior_ratio, opts=tree.Options()):
     '''
     Returns the acceptance probability of a death move involving a given node.
 
@@ -113,25 +113,24 @@ def _death_prob(v, root, alpha, lprior_ratio, complete=False,
     '''
     nc, lc, ac = root.node_count, root.leaf_count, root.attachment_count
     nac = ac-v.attachment_count+1
-    if complete:
+    if opts.complete:
         lr = likelihood.complete_ldeath_ratio(v, alpha)
         pr = lprior_ratio(nc+ac, nc-1+nac)
     else:
         lr = likelihood.ldeath_ratio(v, alpha)
         pr = lprior_ratio(nc, nc-1)
-    dm = _move_probs(nc, ac, complete, min_skip_prob)[1]
-    bm = _move_probs(nc-1, nac, complete, min_skip_prob)[0]
+    dm = _move_probs(nc, ac, opts)[1]
+    bm = _move_probs(nc-1, nac, opts)[0]
     return math.exp(lr+pr)*(bm/nac)*(lc/dm)
 
-def _move_probs(node_count, attachment_count, complete=False,
-        min_skip_prob=1/3):
+def _move_probs(node_count, attachment_count, opts=tree.Options()):
     '''
     Returns the probabilities of proposing birth and death moves, respectively.
     '''
-    move_prob = 1-min_skip_prob
-    if node_count == (0 if complete else 1) and attachment_count == 0:
+    move_prob = 1-opts.min_skip_prob
+    if node_count == (0 if opts.complete else 1) and attachment_count == 0:
         return 0, 0
-    elif node_count == (0 if complete else 1):
+    elif node_count == (0 if opts.complete else 1):
         return move_prob, 0
     elif attachment_count == 0:
         return 0, move_prob

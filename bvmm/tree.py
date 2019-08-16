@@ -37,24 +37,30 @@ class Node:
         self.sample_count = 0
         self.is_active = False
 
-'''
-A simple helper class used to ferry user-configured options between functions.
+class Options:
+    '''
+    A simple helper class used to ferry configuration options between functions.
 
-Args:
-    complete: whether or not the tree should be interpreted as a complete tree,
-        in which case leaves will be viewed as internal nodes, and their
-        inactive children treated as leaves.
-    fringe: if true, strict internal nodes (whose children are all active) will
-        not have their sample counts updated.
-'''
-Options = collections.namedtuple('Options', [
-    'prior',
-    'complete',
-    'fringe',
-    'height_step',
-    'min_skip_prob'
-])
-defaults = Options('uniform', False, False, 1, 1/3)
+    Args:
+        complete: whether or not the tree should be interpreted as a complete
+            tree, in which case leaves will be viewed as internal nodes, and
+            their inactive children treated as leaves.
+        fringe: if true, strict internal nodes (whose children are all active)
+            will not have their sample counts updated.
+        height_step: the number of levels that should be added each time the
+            tree's limits are reached and it needs to be extended with new,
+            inactive nodes.
+        min_skip_prob: the base probability of proposing the 'identity' move,
+            which does not alter the active tree at all. The effective
+            probability will be greater whenever birth or death moves are
+            impossible.
+    '''
+    def __init__(self, complete=False, fringe=False, height_step=1,
+            min_skip_prob=1/3):
+        self.complete = complete
+        self.fringe = fringe
+        self.height_step = height_step
+        self.min_skip_prob = min_skip_prob
 
 def create_tree(height, alphabet):
     '''
@@ -117,7 +123,7 @@ def update_counts(v, nodes=0, leaves=0, attachments=0):
     if v.parent is not None:
         update_counts(v.parent, nodes, leaves, attachments)
 
-def update_sample_counts(v, samples=1, scale=1, opts=defaults):
+def update_sample_counts(v, samples=1, scale=1, opts=Options()):
     '''
     Increases, decreases, or scales the sample counts of the nodes in a tree.
 
@@ -179,20 +185,19 @@ def attachment(v, a):
             return attachment(w, a)
         a -= w.attachment_count
 
-def activate(v, data, alphabet, opts=defaults):
+def activate(v, data, alphabet, opts=Options()):
     '''
     Activates a node and, if necessary, initialises its children.
 
-    If `complete` is true, this function will initialise the descendants of `v`
-    to a depth of two if necessary, because in the complete case a child node
-    will only be counted as a possible attachment if at least one of its
-    children is valid as well.
+    If the `complete` option is true, this function will initialise the
+    descendants of `v` to a depth of two where necessary, because in the
+    complete case a child node will only be counted as a possible attachment if
+    at least one of its children is valid as well.
 
-    Args:
-        v: the valid attachment node to be activated: `v` must be inactive, with
-            an active parent, and have at least one positive count.
-        data: a list of integer indices, or an iterable set of such lists.
-        alphabet: the set of characters that appear in the original data set.
+    Args: v: the valid attachment node to be activated: `v` must be inactive,
+        with an active parent, and have at least one positive count. data: a
+        list of integer indices, or an iterable set of such lists. alphabet: the
+        set of characters that appear in the original data set.
     '''
     v.is_active = True
     v.node_count = 1

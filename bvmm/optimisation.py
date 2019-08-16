@@ -4,13 +4,13 @@
 #===============================================================================
 
 import numpy as np
-from . import tree
-from . import likelihood
+from . import tree as tree
+from . import likelihood as likelihood
 
 def mlhd(data, alphabet, alpha, runs, prior='uniform', complete=False,
         height_step=1):
     '''
-    Estimates the tree of maximal likelihood for a given data set.
+    Estimates the maximum likelihood or a posteriori tree for a given data set.
 
     Args:
         data: a list of integer indices, or an iterable set of such lists.
@@ -31,34 +31,35 @@ def mlhd(data, alphabet, alpha, runs, prior='uniform', complete=False,
     Returns:
         The root of the estimated tree.
     '''
+    opts = tree.Options(complete, height_step=height_step)
     lpr = likelihood.prior_function(prior)
     ml, mroot = None, None
     for r in range(runs):
-        l, root = _mlhd(data, alphabet, alpha, lpr, complete, height_step)
+        l, root = _mlhd(data, alphabet, alpha, lpr, opts)
         if ml is None or l > ml:
             ml, mroot = l, root
     return mroot
 
-def _mlhd(data, alphabet, alpha, lprior_ratio, complete=False, height_step=1):
+def _mlhd(data, alphabet, alpha, lprior_ratio, opts=tree.Options()):
     # This function attempts to find a tree of maximum likelihood by activating
     # nodes randomly until an increase in likelihood is no longer possible.
-    root = tree.create_tree(height_step, alphabet)
+    root = tree.create_tree(opts.height_step, alphabet)
     tree.initialise_counts(root, data, alphabet)
-    tree.activate(root, data, alphabet, complete, height_step)
+    tree.activate(root, data, alphabet, opts)
     l, increased = 1, True
     while increased:
         increased = False
         for a in np.random.permutation(root.attachment_count):
             v = tree.attachment(root, a)
             nc, ac = root.node_count, root.attachment_count
-            if complete:
+            if opts.complete:
                 vc = sum(w.counts is not None for w in v.children)
                 lr = likelihood.complete_lbirth_ratio(v, alpha) + \
                      lprior_ratio(nc+ac, nc+ac+vc)
             else:
                 lr = likelihood.lbirth_ratio(v, alpha) + lprior_ratio(nc, nc+1)
             if lr > 0:
-                tree.activate(v, data, alphabet, complete, height_step)
+                tree.activate(v, data, alphabet, opts)
                 increased = True
                 l += lr
                 break

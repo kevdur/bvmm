@@ -119,7 +119,7 @@ def complete_ldeath_ratio(v, alpha):
     '''
     return -complete_lbirth_ratio(v, alpha)
 
-def _llhd(root, data, alphabet, alpha, lprior_ratio, opts):
+def _llhd(root, data, alphabet, alpha, lprior_ratio, opts=tree.Options()):
     '''
     Returns the unnormalised log-likelihood of a given tree.
 
@@ -172,19 +172,20 @@ def bf(data, alphabet, alpha, prior='uniform', complete=False, fringe=False,
         probability that its associated state was present in the model that
         generated the data.
     '''
+    opts = tree.Options(complete, fringe, height_step)
     lpr = prior_function(prior)
     root = tree.create_tree(height_step, alphabet)
     tree.initialise_counts(root, data, alphabet)
-    tree.activate(root, data, alphabet, height_step, complete)
+    tree.activate(root, data, alphabet, opts)
     lsm = 0
-    for s in _subtrees(root, 0, data, alphabet, complete, height_step):
-        lhd = math.exp(_llhd(root, data, alphabet, alpha, lpr, complete))
+    for s in _subtrees(root, 0, data, alphabet, opts):
+        lhd = math.exp(_llhd(root, data, alphabet, alpha, lpr, opts))
         lsm += lhd
-        tree.update_sample_counts(root, lhd, complete=complete, fringe=fringe)
-    tree.update_sample_counts(root, None, 1/lsm, complete, fringe)
+        tree.update_sample_counts(root, lhd, opts=opts)
+    tree.update_sample_counts(root, None, 1/lsm, opts)
     return root
 
-def _subtrees(v, i, data, alphabet, opts):
+def _subtrees(v, i, data, alphabet, opts=tree.Options()):
     '''
     Generates all possible subtrees of a given tree.
 
