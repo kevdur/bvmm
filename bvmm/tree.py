@@ -62,13 +62,14 @@ class Options:
         self.height_step = height_step
         self.min_skip_prob = min_skip_prob
 
-def create_tree(height, alphabet):
+def create_tree(height, data, alphabet):
     '''
     Creates a complete, inactive tree with uninitialised occurrence counts.
 
     Args:
         height: the depth to which the tree should be grown (a singleton tree
             has a height of zero).
+        data: a list of integer indices, or an iterable set of such lists.
         alphabet: the set of characters that appear in the original data set.
 
     Returns:
@@ -76,6 +77,9 @@ def create_tree(height, alphabet):
     '''
     root = Node('λ', None)
     _add_children(root, 1, height, alphabet)
+    _initialise_counts(root, data, alphabet)
+    if root.counts is not None:
+        root.attachment_count = 1
     return root
 
 def _add_children(v, depth, max_depth, alphabet):
@@ -84,25 +88,18 @@ def _add_children(v, depth, max_depth, alphabet):
         for w in v.children:
             _add_children(w, depth+1, max_depth, alphabet)
 
-def initialise_counts(root, data, alphabet):
-    '''
-    Initialises the occurrence counts for each node of a given subtree.
-
-    Args:
-        root: the root of the subtree to be initialised.
-        data: a list of integer indices, or an iterable set of such lists.
-        alphabet: the set of characters that appear in the original data set.
-    '''
+def _initialise_counts(root, data, alphabet):
     # This function traverses an array of data in reverse, at each datum
     # incrementing counts along a path from the root of the subtree to one of
     # its leaves, according to the datum's prefix.
     def array_counts(array):
         for n in range(len(array)-1, len(state)-1, -1):
-            if array[n-len(state):n] == state:
+            if np.array_equal(array[n-len(state):n], state):
                 _increment_counts(root, array[n], n-len(state), array, alphabet)
     state = path_to(root)[::-1]
     try:
-        map(array_counts, data)
+        for array in data:
+            array_counts(array)
     except TypeError:
         array_counts(data)
 
@@ -123,16 +120,13 @@ def update_counts(v, nodes=0, leaves=0, attachments=0):
     if v.parent is not None:
         update_counts(v.parent, nodes, leaves, attachments)
 
-def update_sample_counts(v, samples=1, scale=1, opts=Options()):
+def update_sample_counts(v, samples, opts):
     '''
-    Increases, decreases, or scales the sample counts of the nodes in a tree.
+    Increases (or decreases) the sample counts of the nodes in a tree.
 
     Args:
         v: the root of the subtree to be updated.
-        samples: the amount by which each sample count should be incremented. If
-            not `None`, `scale` will be ignored.
-        scale: the value with which each sample count should be scaled. Ignored
-            if `samples` is not `None`.
+        samples: the amount that should be added to each sample count.
     '''
     if opts.complete and v.parent is not None and not v.parent.is_active:
         return
@@ -144,14 +138,11 @@ def update_sample_counts(v, samples=1, scale=1, opts=Options()):
     on_fringe = (not v.is_active) if opts.complete else (v.node_count == 1)
     for w in v.children:
         if w.counts is not None:
-            update_sample_counts(w, samples, scale, opts)
+            update_sample_counts(w, samples, opts)
             if not opts.complete and not w.is_active:
                 on_fringe = True
     if not opts.fringe or on_fringe:
-        if samples is not None:
-            v.sample_count += samples
-        else:
-            v.sample_count *= scale
+        v.sample_count += samples
 
 def path_to(v):
     '''
@@ -185,7 +176,7 @@ def attachment(v, a):
             return attachment(w, a)
         a -= w.attachment_count
 
-def activate(v, data, alphabet, opts=Options()):
+def activate(v, data, alphabet, opts):
     '''
     Activates a node and, if necessary, initialises its children.
 
@@ -194,10 +185,11 @@ def activate(v, data, alphabet, opts=Options()):
     complete case a child node will only be counted as a possible attachment if
     at least one of its children is valid as well.
 
-    Args: v: the valid attachment node to be activated: `v` must be inactive,
-        with an active parent, and have at least one positive count. data: a
-        list of integer indices, or an iterable set of such lists. alphabet: the
-        set of characters that appear in the original data set.
+    Args:
+        v: the valid attachment node to be activated: `v` must be inactive, with
+            an active parent, and have at least one positive count.
+        data: a list of integer indices, or an iterable set of such lists.
+        alphabet: the set of characters that appear in the original data set.
     '''
     v.is_active = True
     v.node_count = 1
@@ -207,7 +199,7 @@ def activate(v, data, alphabet, opts=Options()):
         if not v.children:
             _add_children(v, 1, opts.height_step, alphabet)
             v.counts = np.zeros(len(alphabet))
-            initialise_counts(v, data, alphabet)
+            _initialise_counts(v, data, alphabet)
         for w in v.children:
             if w.counts is not None:
                 w.attachment_count = 1
@@ -223,7 +215,7 @@ def activate(v, data, alphabet, opts=Options()):
                 v.children = []
                 _add_children(v, 1, opts.height_step+1, alphabet)
                 v.counts = np.zeros(len(alphabet))
-                initialise_counts(v, data, alphabet)
+                _initialise_counts(v, data, alphabet)
                 break
         for w in v.children:
             if w.counts is None:

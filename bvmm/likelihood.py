@@ -8,7 +8,16 @@ import numpy as np
 from . import tree
 from scipy.special import gammaln
 
-def prior_function(prior):
+def _verify_alpha(alpha, alphabet):
+    if alpha is None:
+        return np.ones(len(alphabet))
+    elif len(alpha) != len(alphabet):
+        raise ValueError('The alpha array must have the same length as the '
+                         'alphabet array.')
+    else:
+        return alpha
+
+def _prior_function(prior):
     if prior.lower() == 'uniform':
         return luniform_ratio
     elif prior.lower() == 'inverse':
@@ -38,7 +47,7 @@ def linverse_ratio(k, l):
         k: the size of the current tree.
         l: the size of the proposed tree.
     '''
-    return math.log(l) - math.log(k)
+    return math.log(k) - math.log(l)
 
 def lpoisson_ratio(k, l):
     '''
@@ -119,7 +128,7 @@ def complete_ldeath_ratio(v, alpha):
     '''
     return -complete_lbirth_ratio(v, alpha)
 
-def _llhd(root, data, alphabet, alpha, lprior_ratio, opts=tree.Options()):
+def _llhd(root, data, alphabet, alpha, lprior_ratio, opts):
     '''
     Returns the unnormalised log-likelihood of a given tree.
 
@@ -133,7 +142,7 @@ def _llhd(root, data, alphabet, alpha, lprior_ratio, opts=tree.Options()):
     # This algorithm proceeds by deactivating leaves, recording the change in
     # likelihood after each step.
     l, vs = 0, []
-    while root.node_count > 0 if opts.complete else 1:
+    while root.node_count > (0 if opts.complete else 1):
         v = tree.leaf(root, 0)
         nc, ac, vc = root.node_count, root.attachment_count, v.attachment_count
         if opts.complete:
@@ -143,11 +152,11 @@ def _llhd(root, data, alphabet, alpha, lprior_ratio, opts=tree.Options()):
         tree.deactivate(v)
         vs.append(v)
     for v in reversed(vs):
-        tree.activate(v, data, alphabet)
+        tree.activate(v, data, alphabet, opts)
     return l
 
-def bf(data, alphabet, alpha, prior='uniform', complete=False, fringe=False,
-        height_step=1):
+def bf(data, alphabet, alpha=None, max_height=np.inf, prior='uniform',
+        complete=False, fringe=False, height_step=1):
     '''
     Computes the probabilities of all possible Markov trees by brute force.
     
@@ -155,7 +164,10 @@ def bf(data, alphabet, alpha, prior='uniform', complete=False, fringe=False,
         data: a list of integer indices, or an iterable set of such lists.
         alphabet: the set of characters that appear in the original data set.
         alpha: the 'concentration' vector that is used to parameterise the
-            Dirichlet prior on the nodes' categorical distributions.
+            Dirichlet prior on the nodes' categorical distributions. Will be
+            initialised to an array of ones by default.
+        max_height: only those trees whose height is less than or equal to the
+            given value will be considered.
         prior: the distribution to use as a prior on tree size, one of
             'uniform', 'inverse' (1/k), and 'poisson' (1/k!).
         complete: whether or not the tree should be interpreted as a complete
@@ -172,20 +184,21 @@ def bf(data, alphabet, alpha, prior='uniform', complete=False, fringe=False,
         probability that its associated state was present in the model that
         generated the data.
     '''
+    alpha = _verify_alpha(alpha, alphabet)
     opts = tree.Options(complete, fringe, height_step)
-    lpr = prior_function(prior)
-    root = tree.create_tree(height_step, alphabet)
-    tree.initialise_counts(root, data, alphabet)
-    tree.activate(root, data, alphabet, opts)
+    lpr = _prior_function(prior)
+    root = tree.create_tree(height_step, data, alphabet)
+    if not complete:
+        tree.activate(root, data, alphabet, opts)
     lsm = 0
-    for s in _subtrees(root, 0, data, alphabet, opts):
+    for s in _subtrees(root, 0, max_height, data, alphabet, opts):
         lhd = math.exp(_llhd(root, data, alphabet, alpha, lpr, opts))
         lsm += lhd
         tree.update_sample_counts(root, lhd, opts=opts)
-    tree.update_sample_counts(root, None, 1/lsm, opts)
+    _scale_sample_counts(root, 1/lsm)
     return root
 
-def _subtrees(v, i, data, alphabet, opts=tree.Options()):
+def _subtrees(v, i, h, data, alphabet, opts):
     '''
     Generates all possible subtrees of a given tree.
 
@@ -199,6 +212,7 @@ def _subtrees(v, i, data, alphabet, opts=tree.Options()):
             are greater than or equal to `i` are generated. (In this way
             subtrees can be generated recursively, regardless of the arity of
             the tree.)
+        h: the maximum height of the generated subtrees.
 
     Yields:
         Each time this function yields (returning nothing), the active tree
@@ -206,15 +220,20 @@ def _subtrees(v, i, data, alphabet, opts=tree.Options()):
     '''
     if not v.is_active and i == 0:
         yield
-        if v.attachment_count > 0:
+        if v.attachment_count > 0 and h >= (1 if opts.complete else 0):
             tree.activate(v, data, alphabet, opts)
     if v.is_active:
         if i == len(alphabet) - 1:
-            for s in _subtrees(v.children[i], 0, data, alphabet, opts):
+            for s in _subtrees(v.children[i], 0, h-1, data, alphabet, opts):
                 yield
         else:
-            for s in _subtrees(v.children[i], 0, data, alphabet, opts):
-                for t in _subtrees(v, i+1, data, alphabet, opts):
+            for s in _subtrees(v.children[i], 0, h-1, data, alphabet, opts):
+                for t in _subtrees(v, i+1, h, data, alphabet, opts):
                     yield
         if i == 0:
             tree.deactivate(v)
+
+def _scale_sample_counts(root, scale):
+    root.sample_count *= scale
+    for w in root.children:
+        _scale_sample_counts(w, scale)

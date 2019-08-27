@@ -20,17 +20,18 @@ class Counts:
         self.deaths = 0
         self.death_attempts = 0
 
-def mcmc(data, alphabet, alpha, samples, prior='uniform', complete=False,
-        fringe=False, height_step=1, min_skip_prob=1/3):
+def mcmc(data, alphabet, samples, alpha=None, prior='uniform', complete=False,
+        fringe=False, height_step=1, min_skip_prob=0.1):
     '''
     Samples trees according to their likelihoods using Markov chain Monte Carlo.
 
     Args:
         data: a list of integer indices, or an iterable set of such lists.
         alphabet: the set of characters that appear in the original data set.
-        alpha: the 'concentration' vector that is used to parameterise the
-            Dirichlet prior on the nodes' categorical distributions.
         samples: the number of moves in the MCMC run.
+        alpha: the 'concentration' vector that is used to parameterise the
+            Dirichlet prior on the nodes' categorical distributions. Will be
+            initialised to an array of ones by default.
         prior: the distribution to use as a prior on tree size, one of
             'uniform', 'inverse' (1/k), and 'poisson' (1/k!).
         complete: whether or not the tree should be interpreted as a complete
@@ -54,12 +55,11 @@ def mcmc(data, alphabet, alpha, samples, prior='uniform', complete=False,
         that generated the data.
     '''
     counts = Counts()
+    alpha = likelihood._verify_alpha(alpha, alphabet)
     opts = tree.Options(complete, fringe, height_step, min_skip_prob)
-    lpr = likelihood.prior_function(prior)
-    root = tree.create_tree(height_step, alphabet)
-    tree.initialise_counts(root, data, alphabet)
+    lpr = likelihood._prior_function(prior)
+    root = tree.create_tree(height_step, data, alphabet)
     tree.activate(root, data, alphabet, opts)
-
     for s in range(samples):
         nc, ac = root.node_count, root.attachment_count
         birth_move, death_move = _move_probs(nc, ac, opts)
@@ -75,9 +75,10 @@ def mcmc(data, alphabet, alpha, samples, prior='uniform', complete=False,
         else:
             counts.skips += 1
         tree.update_sample_counts(root, 1, opts=opts)
+    likelihood._scale_sample_counts(root, 1/samples)
     return root, counts
 
-def _birth(root, data, alphabet, alpha, lprior_ratio, opts=tree.Options()):
+def _birth(root, data, alphabet, alpha, lprior_ratio, opts):
     '''
     Attempts a birth move, returning true if the move was accepted.
     '''
@@ -87,28 +88,28 @@ def _birth(root, data, alphabet, alpha, lprior_ratio, opts=tree.Options()):
     # after the node's children have been initialised (during activation).
     v = tree.attachment(root, np.random.randint(root.attachment_count))
     tree.activate(v, data, alphabet, opts)
-    death_prob = _death_prob(root, alpha, lprior_ratio, opts)
-    if np.random.rand() > 1/death_prob:
+    death_prob = _death_prob(v, root, alpha, lprior_ratio, opts)
+    if death_prob != 0 and np.random.rand() > 1/death_prob:
         tree.deactivate(v)
         return False
     return True
 
-def _death(v, root, alpha, lprior_ratio, opts=tree.Options()):
+def _death(root, alpha, lprior_ratio, opts):
     '''
     Attempts a death move, returning true if the move was accepted.
     '''
     v = tree.leaf(root, np.random.randint(root.leaf_count))
-    death_prob = _death_prob(root, alpha, lprior_ratio, opts)
+    death_prob = _death_prob(v, root, alpha, lprior_ratio, opts)
     if np.random.rand() <= death_prob:
         tree.deactivate(v)
         return True
     return False
 
-def _death_prob(v, root, alpha, lprior_ratio, opts=tree.Options()):
+def _death_prob(v, root, alpha, lprior_ratio, opts):
     '''
     Returns the acceptance probability of a death move involving a given node.
 
-    Note that the probability of the reciprocal birth move is the inverse of
+    Note that the probability of the corresponding birth move is the inverse of
     this death probability.
     '''
     nc, lc, ac = root.node_count, root.leaf_count, root.attachment_count
@@ -123,7 +124,7 @@ def _death_prob(v, root, alpha, lprior_ratio, opts=tree.Options()):
     bm = _move_probs(nc-1, nac, opts)[0]
     return math.exp(lr+pr)*(bm/nac)*(lc/dm)
 
-def _move_probs(node_count, attachment_count, opts=tree.Options()):
+def _move_probs(node_count, attachment_count, opts):
     '''
     Returns the probabilities of proposing birth and death moves, respectively.
     '''

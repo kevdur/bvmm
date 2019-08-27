@@ -5,6 +5,7 @@
 
 import numpy as np
 from . import tree
+from . import likelihood
 
 def rand_tree(n, alphabet, alpha):
     '''
@@ -15,10 +16,12 @@ def rand_tree(n, alphabet, alpha):
         alphabet: the set of characters that should be associated with the
             tree's nodes.
         alpha: the 'concentration' vector that is used to parameterise the
-            Dirichlet distribution from which the nodes' counts are sampled.
+            Dirichlet distribution from which the nodes' counts are sampled. It
+            should have the same length as the alphabet array.
     '''
+    alpha = likelihood._verify_alpha(alpha, alphabet)
     opts = tree.Options(False, height_step=1)
-    root = tree.create_tree(0, alphabet)
+    root = tree.create_tree(0, [], alphabet)
     _rand_counts(root, alpha)
     for i in range(n):
         v = tree.attachment(root, np.random.randint(0, root.attachment_count))

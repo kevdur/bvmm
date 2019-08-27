@@ -3,11 +3,12 @@
 # Maximum Likelihood Functions
 #===============================================================================
 
+import math
 import numpy as np
-from . import tree as tree
-from . import likelihood as likelihood
+from . import tree
+from . import likelihood
 
-def mlhd(data, alphabet, alpha, runs, prior='uniform', complete=False,
+def mlhd(data, alphabet, runs, alpha=None, prior='uniform', complete=False,
         height_step=1):
     '''
     Estimates the maximum likelihood or a posteriori tree for a given data set.
@@ -16,7 +17,8 @@ def mlhd(data, alphabet, alpha, runs, prior='uniform', complete=False,
         data: a list of integer indices, or an iterable set of such lists.
         alphabet: the set of characters that appear in the original data set.
         alpha: the 'concentration' vector that is used to parameterise the
-            Dirichlet prior on the nodes' categorical distributions.
+            Dirichlet prior on the nodes' categorical distributions. Will be
+            initialised to an array of ones by default.
         runs: the number of times the optimisation heuristic should be executed;
             the best result is returned.
         prior: the distribution to use as a prior on tree size, one of
@@ -31,8 +33,9 @@ def mlhd(data, alphabet, alpha, runs, prior='uniform', complete=False,
     Returns:
         The root of the estimated tree.
     '''
+    alpha = likelihood._verify_alpha(alpha, alphabet)
     opts = tree.Options(complete, height_step=height_step)
-    lpr = likelihood.prior_function(prior)
+    lpr = likelihood._prior_function(prior)
     ml, mroot = None, None
     for r in range(runs):
         l, root = _mlhd(data, alphabet, alpha, lpr, opts)
@@ -40,11 +43,10 @@ def mlhd(data, alphabet, alpha, runs, prior='uniform', complete=False,
             ml, mroot = l, root
     return mroot
 
-def _mlhd(data, alphabet, alpha, lprior_ratio, opts=tree.Options()):
+def _mlhd(data, alphabet, alpha, lprior_ratio, opts):
     # This function attempts to find a tree of maximum likelihood by activating
     # nodes randomly until an increase in likelihood is no longer possible.
-    root = tree.create_tree(opts.height_step, alphabet)
-    tree.initialise_counts(root, data, alphabet)
+    root = tree.create_tree(opts.height_step, data, alphabet)
     tree.activate(root, data, alphabet, opts)
     l, increased = 1, True
     while increased:
