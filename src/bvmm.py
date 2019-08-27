@@ -348,17 +348,26 @@ def print_tree(v, inactive=True, min_samples=0, prefix=''):
         for w in v.children:
             print_tree(w, inactive, min_samples, prefix + str(v.symbol))
 
-symbols = range(3)
-alpha = [1, 1, 1]
+symbols = range(2)
+alpha = [1, 1]
 root = rand_tree(3, symbols, alpha)
 print_tree(root)
 data = rand_data(root, [], 4, symbols)
 print(data)
 mroot = mvmm(data, symbols, alpha, 10)
 
+data = [0, 1, 0, 1]
 data = [0, 1, 0, 0, 1, 0, 1, 0, 1, 0]
 data = [1, 2, 0, 2]
 data = [0, 1, 2, 1, 0, 1, 2, 0, 2, 0, 1, 2]
+
+root = create_tree(1, symbols)
+initialise_counts(root, data, symbols)
+activate(root, data, symbols)
+for s in subtrees(root, 0, data, symbols):
+    print_tree(root)
+    print(lhd(root, data, symbols, alpha))
+    print()
 
 lroot = lhds(data, symbols, alpha)
 print_tree(lroot, min_samples=1e-16)
