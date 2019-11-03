@@ -47,7 +47,8 @@ def _mlhd(data, alphabet, alpha, lprior_ratio, opts):
     # This function attempts to find a tree of maximum likelihood by activating
     # nodes randomly until an increase in likelihood is no longer possible.
     root = tree.create_tree(opts.height_step, data, alphabet)
-    tree.activate(root, data, alphabet, opts)
+    if not opts.complete:
+        tree.activate(root, data, alphabet, opts)
     l, increased = 1, True
     while increased:
         increased = False

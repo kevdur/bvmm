@@ -27,7 +27,7 @@ def create_alphabet(data):
                 i = index.setdefault(x, len(index))
                 array.append(i)
             output.append(array)
-    return output, list(index.keys)
+    return output, list(index.keys())
 
 def apply_alphabet(data, alphabet):
     '''
@@ -45,7 +45,8 @@ def apply_alphabet(data, alphabet):
     except TypeError:
         return ''.join(alphabet[i] for i in data)
 
-def print_tree(v, complete=False, min_samples=1e-16, verbose=False, prefix=''):
+def print_tree(v, alphabet, complete=False, min_samples=1e-16, verbose=False,
+        prefix=''):
     '''
     Prints details of a tree's nodes, in depth-first order.
 
@@ -57,6 +58,7 @@ def print_tree(v, complete=False, min_samples=1e-16, verbose=False, prefix=''):
         complete: whether or not the tree should be interpreted as a complete
             tree, in which case leaves will be viewed as internal nodes, and
             their inactive children treated as leaves.
+        alphabet: a list containing the symbols represented by the indices.
         min_samples: nodes with fewer than `min_samples` samples will not be
             printed.
         verbose: if true, extra information will be printed for each node.
@@ -69,20 +71,27 @@ def print_tree(v, complete=False, min_samples=1e-16, verbose=False, prefix=''):
         elif not complete and not v.is_active:
             return
 
-    smpl = '{:5}' if v.sample_count == int(v.sample_count) else '{:5.3f}'
+    prefix += str(v.symbol)
+    smpl = _num_str(v.sample_count, 3, 5)
+    if v.counts is None:
+        cnts = 'None'
+    else:
+        cnts = sorted(zip(alphabet, v.counts), key=lambda z: z[1], reverse=True)
+        cnts = ', '.join(x + ': ' + _num_str(c) for x, c in cnts if c > 0)
+
     if verbose:
-        print('{:5} {} {} ({}active, {} nds, {} lvs, {} atts)'.format(
-            prefix + str(v.symbol) + ':',
-            smpl.format(v.sample_count),
-            v.counts if v.counts is not None else '[None]',
+        print('{:5} {} [{}]'.format(prefix + ':', smpl, cnts))
+        print(' '*12 + '({}active, {} nds, {} lvs, {} atts)'.format(
             '' if v.is_active else 'in',
             v.node_count, v.leaf_count, v.attachment_count
         ))
     else:
-        print('{:5} {} {}'.format(
-            prefix + str(v.symbol) + ':',
-            smpl.format(v.sample_count),
-            v.counts if v.counts is not None else '[None]'
-        ))
+        print('{:5} {} [{}]'.format(prefix + ':', smpl, cnts))
     for w in v.children:
-        print_tree(w, complete, min_samples, verbose, prefix + str(v.symbol))
+        print_tree(w, alphabet, complete, min_samples, verbose, prefix)
+
+def _num_str(x, decimal=2, padding=0):
+    if x == int(x):
+        return '{{:{}.0f}}'.format(padding).format(x)
+    else:
+        return '{{:{}.{}f}}'.format(padding, decimal).format(x)

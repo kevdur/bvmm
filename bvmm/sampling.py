@@ -20,15 +20,16 @@ class Counts:
         self.deaths = 0
         self.death_attempts = 0
 
-def mcmc(data, alphabet, samples, alpha=None, prior='uniform', complete=False,
-        fringe=False, height_step=1, min_skip_prob=0.1):
+def mcmc(data, alphabet, samples, period=1, alpha=None, prior='uniform',
+        complete=False, fringe=False, height_step=1, min_skip_prob=0.1):
     '''
     Samples trees according to their likelihoods using Markov chain Monte Carlo.
 
     Args:
         data: a list of integer indices, or an iterable set of such lists.
         alphabet: the set of characters that appear in the original data set.
-        samples: the number of moves in the MCMC run.
+        samples: the number of MCMC samples to generate.
+        period: the number of MCMC moves to perform between consecutive samples.
         alpha: the 'concentration' vector that is used to parameterise the
             Dirichlet prior on the nodes' categorical distributions. Will be
             initialised to an array of ones by default.
@@ -59,8 +60,9 @@ def mcmc(data, alphabet, samples, alpha=None, prior='uniform', complete=False,
     opts = tree.Options(complete, fringe, height_step, min_skip_prob)
     lpr = likelihood._prior_function(prior)
     root = tree.create_tree(height_step, data, alphabet)
-    tree.activate(root, data, alphabet, opts)
-    for s in range(samples):
+    if not complete:
+        tree.activate(root, data, alphabet, opts)
+    for s in range(samples*period):
         nc, ac = root.node_count, root.attachment_count
         birth_move, death_move = _move_probs(nc, ac, opts)
         m = np.random.rand()
@@ -74,7 +76,8 @@ def mcmc(data, alphabet, samples, alpha=None, prior='uniform', complete=False,
                 counts.deaths += 1
         else:
             counts.skips += 1
-        tree.update_sample_counts(root, 1, opts=opts)
+        if (s+1) % period == 0:
+            tree.update_sample_counts(root, 1, opts=opts)
     likelihood._scale_sample_counts(root, 1/samples)
     return root, counts
 

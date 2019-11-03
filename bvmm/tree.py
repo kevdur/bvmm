@@ -23,11 +23,13 @@ class Node:
     the traversal, growth, and pruning of the tree.
 
     Args:
-        i: the symbol this node represents. parent: the first node along the
-            path from this node to the root.
+        i: the integer index assigned to this node's symbol.
+        x: the symbol this node represents.
+        parent: the first node along the path from this node to the root.
     '''
-    def __init__(self, i, parent):
-        self.symbol = i
+    def __init__(self, i, x, parent):
+        self.index = i
+        self.symbol = x
         self.counts = None
         self.parent = parent
         self.children = []
@@ -64,7 +66,7 @@ class Options:
 
 def create_tree(height, data, alphabet):
     '''
-    Creates a complete, inactive tree with uninitialised occurrence counts.
+    Creates a complete, inactive tree with initialised occurrence counts.
 
     Args:
         height: the depth to which the tree should be grown (a singleton tree
@@ -75,7 +77,7 @@ def create_tree(height, data, alphabet):
     Returns:
         The root node of the tree.
     '''
-    root = Node('λ', None)
+    root = Node(-1, 'λ', None)
     _add_children(root, 1, height, alphabet)
     _initialise_counts(root, data, alphabet)
     if root.counts is not None:
@@ -84,19 +86,19 @@ def create_tree(height, data, alphabet):
 
 def _add_children(v, depth, max_depth, alphabet):
     if depth <= max_depth:
-        v.children = [Node(x, v) for x in alphabet]
+        v.children = [Node(i, x, v) for i, x in enumerate(alphabet)]
         for w in v.children:
             _add_children(w, depth+1, max_depth, alphabet)
 
-def _initialise_counts(root, data, alphabet):
+def _initialise_counts(v, data, alphabet):
     # This function traverses an array of data in reverse, at each datum
     # incrementing counts along a path from the root of the subtree to one of
     # its leaves, according to the datum's prefix.
     def array_counts(array):
         for n in range(len(array)-1, len(state)-1, -1):
             if np.array_equal(array[n-len(state):n], state):
-                _increment_counts(root, array[n], n-len(state), array, alphabet)
-    state = path_to(root)[::-1]
+                _increment_counts(v, array[n], n-len(state), array, alphabet)
+    state = path_to(v)[::-1]
     try:
         for array in data:
             array_counts(array)
@@ -151,7 +153,7 @@ def path_to(v):
     if v.parent is None:
         return []
     path = path_to(v.parent)
-    path.append(v.symbol)
+    path.append(v.index)
     return path
 
 def leaf(v, l):
