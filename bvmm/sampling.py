@@ -20,8 +20,17 @@ class Counts:
         self.deaths = 0
         self.death_attempts = 0
 
-def mcmc(data, alphabet, samples, period=1, alpha=None, prior='uniform',
-        complete=False, fringe=False, height_step=1, min_skip_prob=0.1):
+    def __str__(self):
+        b, ba = self.births, self.birth_attempts
+        d, da = self.deaths, self.death_attempts
+        bf, df = 0 if b == 0 else b/ba, 0 if d == 0 else d/da
+        return ('births: {}/{} ({:.0%})\n'
+                'deaths: {}/{} ({:.0%})\n'
+                'skips:  {}').format(b, ba, bf, d, da, df, self.skips)
+
+def mcmc(data, alphabet, samples, period=1, min_skip_prob=0.1, alpha=None,
+        prior='uniform', complete=False, fringe=False, height_step=1,
+        kind='sequence'):
     '''
     Samples trees according to their likelihoods using Markov chain Monte Carlo.
 
@@ -30,6 +39,10 @@ def mcmc(data, alphabet, samples, period=1, alpha=None, prior='uniform',
         alphabet: the set of characters that appear in the original data set.
         samples: the number of MCMC samples to generate.
         period: the number of MCMC moves to perform between consecutive samples.
+        min_skip_prob: the base probability of proposing the 'identity' move,
+            which does not alter the active tree at all. The effective
+            probability will be greater whenever birth or death moves are
+            impossible.
         alpha: the 'concentration' vector that is used to parameterise the
             Dirichlet prior on the nodes' categorical distributions. Will be
             initialised to an array of ones by default.
@@ -43,10 +56,7 @@ def mcmc(data, alphabet, samples, period=1, alpha=None, prior='uniform',
         height_step: the number of levels that should be added each time the
             tree's limits are reached and it needs to be extended with new,
             inactive nodes.
-        min_skip_prob: the base probability of proposing the 'identity' move,
-            which does not alter the active tree at all. The effective
-            probability will be greater whenever birth or death moves are
-            impossible.
+        kind: the data type, either 'sequence' or 'network'.
 
     Returns:
         The root of a tree in which each node's sample count reflects the number
@@ -57,9 +67,9 @@ def mcmc(data, alphabet, samples, period=1, alpha=None, prior='uniform',
     '''
     counts = Counts()
     alpha = likelihood._verify_alpha(alpha, alphabet)
-    opts = tree.Options(complete, fringe, height_step, min_skip_prob)
+    opts = tree.Options(complete, fringe, height_step, min_skip_prob, kind)
     lpr = likelihood._prior_function(prior)
-    root = tree.create_tree(height_step, data, alphabet)
+    root = tree.create_tree(height_step, data, alphabet, kind)
     if not complete:
         tree.activate(root, data, alphabet, opts)
     for s in range(samples*period):
@@ -79,6 +89,8 @@ def mcmc(data, alphabet, samples, period=1, alpha=None, prior='uniform',
         if (s+1) % period == 0:
             tree.update_sample_counts(root, 1, opts=opts)
     likelihood._scale_sample_counts(root, 1/samples)
+    while root.node_count > (0 if opts.complete else 1):
+        tree.deactivate(tree.leaf(root, 0))
     return root, counts
 
 def _birth(root, data, alphabet, alpha, lprior_ratio, opts):

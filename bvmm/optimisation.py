@@ -9,7 +9,7 @@ from . import tree
 from . import likelihood
 
 def mlhd(data, alphabet, runs, alpha=None, prior='uniform', complete=False,
-        height_step=1):
+        height_step=1, kind='sequence'):
     '''
     Estimates the maximum likelihood or a posteriori tree for a given data set.
 
@@ -29,12 +29,13 @@ def mlhd(data, alphabet, runs, alpha=None, prior='uniform', complete=False,
         height_step: the number of levels that should be added each time the
             tree's limits are reached and it needs to be extended with new,
             inactive nodes.
+        kind: the data type, either 'sequence' or 'network'.
 
     Returns:
         The root of the estimated tree.
     '''
     alpha = likelihood._verify_alpha(alpha, alphabet)
-    opts = tree.Options(complete, height_step=height_step)
+    opts = tree.Options(complete, height_step=height_step, kind=kind)
     lpr = likelihood._prior_function(prior)
     ml, mroot = None, None
     for r in range(runs):
@@ -46,7 +47,7 @@ def mlhd(data, alphabet, runs, alpha=None, prior='uniform', complete=False,
 def _mlhd(data, alphabet, alpha, lprior_ratio, opts):
     # This function attempts to find a tree of maximum likelihood by activating
     # nodes randomly until an increase in likelihood is no longer possible.
-    root = tree.create_tree(opts.height_step, data, alphabet)
+    root = tree.create_tree(opts.height_step, data, alphabet, opts.kind)
     if not opts.complete:
         tree.activate(root, data, alphabet, opts)
     l, increased = 1, True

@@ -56,15 +56,17 @@ class Options:
             which does not alter the active tree at all. The effective
             probability will be greater whenever birth or death moves are
             impossible.
+        kind: the data type, either 'sequence' or 'network'.
     '''
     def __init__(self, complete=False, fringe=False, height_step=1,
-            min_skip_prob=1/3):
+            min_skip_prob=1/3, kind='sequence'):
         self.complete = complete
         self.fringe = fringe
         self.height_step = height_step
         self.min_skip_prob = min_skip_prob
+        self.kind = kind
 
-def create_tree(height, data, alphabet):
+def create_tree(height, data, alphabet, kind='sequence'):
     '''
     Creates a complete, inactive tree with initialised occurrence counts.
 
@@ -73,13 +75,14 @@ def create_tree(height, data, alphabet):
             has a height of zero).
         data: a list of integer indices, or an iterable set of such lists.
         alphabet: the set of characters that appear in the original data set.
+        kind: the data type, either 'sequence' or 'network'.
 
     Returns:
         The root node of the tree.
     '''
     root = Node(-1, 'λ', None)
     _add_children(root, 1, height, alphabet)
-    _initialise_counts(root, data, alphabet)
+    _initialise_counts(root, data, alphabet, kind)
     if root.counts is not None:
         root.attachment_count = 1
     return root
@@ -90,27 +93,74 @@ def _add_children(v, depth, max_depth, alphabet):
         for w in v.children:
             _add_children(w, depth+1, max_depth, alphabet)
 
-def _initialise_counts(v, data, alphabet):
-    # This function traverses an array of data in reverse, at each datum
-    # incrementing counts along a path from the root of the subtree to one of
-    # its leaves, according to the datum's prefix.
-    def array_counts(array):
-        for n in range(len(array)-1, len(state)-1, -1):
-            if np.array_equal(array[n-len(state):n], state):
-                _increment_counts(v, array[n], n-len(state), array, alphabet)
-    state = path_to(v)[::-1]
+def _initialise_counts(v, data, alphabet, kind):
+    if kind.lower() == 'sequence':
+        count_func = _sequence_counts
+    elif kind.lower() == 'network':
+        count_func = _network_counts
+    else:
+        raise ValueError("Invalid data type specified. Valid options are "
+                         "'sequence' and 'network'.")
     try:
         for array in data:
-            array_counts(array)
+            count_func(v, array, alphabet)
     except TypeError:
-        array_counts(data)
+        count_func(v, data, alphabet)
 
-def _increment_counts(v, i, n, array, alphabet):
-    if v.counts is None:
-        v.counts = np.zeros(len(alphabet))
-    v.counts[i] += 1
-    if n > 0 and v.children:
-        _increment_counts(v.children[array[n-1]], i, n-1, array, alphabet)
+def _sequence_counts(v, array, alphabet):
+    # This function traverses an array of data in reverse, at each datum
+    # incrementing counts along a path from the root of the subtree to one
+    # of its leaves according to the datum's prefix.
+    state = path_to(v)
+    m = len(state)
+    for n in range(len(array)-1, m-1, -1):
+        # Check if the substring ending at index n matches the current prefix.
+        matched = True
+        for k, x in enumerate(state):
+            if array[n-k-1] != x:
+                matched = False
+                break
+        w, k = v, len(state)+1
+        while matched:
+            if w.counts is None:
+                w.counts = np.zeros(len(alphabet))
+            w.counts[array[n]] += 1
+            if n-k >= 0 and w.children:
+                w = w.children[array[n-k]]
+                k += 1
+            else:
+                matched = False
+
+def _network_counts(v, array, alphabet):
+    # Processes an array of transition pairs, inferring paths within a
+    # network. A simple tree is used to maintain the most recent incoming
+    # path for each node.
+    cursors = {}
+    for i, j in array:
+        # Update the path to j by extending the one to i.
+        if i not in cursors:
+            cursors[i] = (i, None) # (symbol, parent).
+        c = cursors[i]
+        if j not in cursors or cursors[j][1] != c:
+            cursors[j] = (j, c)
+        # Check whether the path to i matches the current node's prefix.
+        matched = True
+        for x in path_to(v):
+            if c is None or c[0] != x:
+                matched = False
+                break
+            c = c[1]
+        # If so, increment the node's count and consider larger prefixes.
+        w = v
+        while matched:
+            if w.counts is None:
+                w.counts = np.zeros(len(alphabet))
+            w.counts[j] += 1
+            if c is not None and w.children:
+                w = w.children[c[0]]
+                c = c[1]
+            else:
+                matched = False
 
 def update_counts(v, nodes=0, leaves=0, attachments=0):
     '''
@@ -200,8 +250,8 @@ def activate(v, data, alphabet, opts):
     if not opts.complete:
         if not v.children:
             _add_children(v, 1, opts.height_step, alphabet)
-            v.counts = np.zeros(len(alphabet))
-            _initialise_counts(v, data, alphabet)
+            v.counts = np.zeros(len(alphabet)) # counts will be reinitialised.
+            _initialise_counts(v, data, alphabet, opts.kind)
         for w in v.children:
             if w.counts is not None:
                 w.attachment_count = 1
@@ -217,7 +267,7 @@ def activate(v, data, alphabet, opts):
                 v.children = []
                 _add_children(v, 1, opts.height_step+1, alphabet)
                 v.counts = np.zeros(len(alphabet))
-                _initialise_counts(v, data, alphabet)
+                _initialise_counts(v, data, alphabet, opts.kind)
                 break
         for w in v.children:
             if w.counts is None:

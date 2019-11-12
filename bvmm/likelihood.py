@@ -155,19 +155,19 @@ def _llhd(root, data, alphabet, alpha, lprior_ratio, opts):
         tree.activate(v, data, alphabet, opts)
     return l
 
-def bf(data, alphabet, alpha=None, max_height=np.inf, prior='uniform',
-        complete=False, fringe=False, height_step=1):
+def bf(data, alphabet, max_height=np.inf, alpha=None, prior='uniform',
+        complete=False, fringe=False, height_step=1, kind='sequence'):
     '''
     Computes the probabilities of all possible Markov trees by brute force.
     
     Args:
         data: a list of integer indices, or an iterable set of such lists.
         alphabet: the set of characters that appear in the original data set.
+        max_height: only those trees whose height is less than or equal to the
+            given value will be considered.
         alpha: the 'concentration' vector that is used to parameterise the
             Dirichlet prior on the nodes' categorical distributions. Will be
             initialised to an array of ones by default.
-        max_height: only those trees whose height is less than or equal to the
-            given value will be considered.
         prior: the distribution to use as a prior on tree size, one of
             'uniform', 'inverse' (1/k), and 'poisson' (1/k!).
         complete: whether or not the tree should be interpreted as a complete
@@ -178,6 +178,7 @@ def bf(data, alphabet, alpha=None, max_height=np.inf, prior='uniform',
         height_step: the number of levels that should be added each time the
             tree's limits are reached and it needs to be extended with new,
             inactive nodes.
+        kind: the data type, either 'sequence' or 'network'.
     
     Returns:
         The root of a tree in which each node's sample count reflects the
@@ -185,9 +186,9 @@ def bf(data, alphabet, alpha=None, max_height=np.inf, prior='uniform',
         generated the data.
     '''
     alpha = _verify_alpha(alpha, alphabet)
-    opts = tree.Options(complete, fringe, height_step)
+    opts = tree.Options(complete, fringe, height_step, kind=kind)
     lpr = _prior_function(prior)
-    root = tree.create_tree(height_step, data, alphabet)
+    root = tree.create_tree(height_step, data, alphabet, kind)
     if not complete:
         tree.activate(root, data, alphabet, opts)
     lsm = 0
