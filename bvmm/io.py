@@ -158,7 +158,7 @@ def write_tree(v, alphabet, filename, complete=False, min_samples=1e-16,
         return nodes
     def write_node(v, prefix):
         prefix += str(v.symbol)
-        f.write('{}: "{}" {}\n'.format(nodes[v], prefix, v.sample_count))
+        f.write('{} "{}" {}\n'.format(nodes[v], prefix, v.sample_count))
         return prefix
     def write_edges(v):
         if v.parent is not None:
