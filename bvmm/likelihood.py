@@ -93,13 +93,13 @@ def ldeath_ratio(v, alpha):
     '''
     return -lbirth_ratio(v, alpha)
 
-def complete_lbirth_ratio(v, alpha):
+def full_lbirth_ratio(v, alpha):
     '''
-    Returns the log-likelihood ratio for a proposed tree-complete birth move.
+    Returns the log-likelihood ratio for a proposed child-complete birth move.
 
     Args:
         v: the attachment node (which is viewed as a leaf when treating the tree
-            as complete) which is to be activated (possibly).
+            as full) which is to be activated (possibly).
         alpha: the 'concentration' vector that is used to parameterise the
             Dirichlet prior on the nodes' categorical distributions.
     '''
@@ -116,17 +116,17 @@ def complete_lbirth_ratio(v, alpha):
     l += np.sum(gammaln(v.counts-ccounts+alpha)) - gammaln(vsm-csm+asm)
     return l
 
-def complete_ldeath_ratio(v, alpha):
+def full_ldeath_ratio(v, alpha):
     '''
-    Returns the log-likelihood ratio for a proposed tree-complete death move.
+    Returns the log-likelihood ratio for a proposed child-complete death move.
 
     Args:
         v: the leaf node (which is viewed as an internal node when treating the
-            tree as complete) which is to be deactivated (possibly).
+            tree as full) which is to be deactivated (possibly).
         alpha: the 'concentration' vector that is used to parameterise the
             Dirichlet prior on the nodes' categorical distributions.
     '''
-    return -complete_lbirth_ratio(v, alpha)
+    return -full_lbirth_ratio(v, alpha)
 
 def _llhd(root, data, alphabet, alpha, lprior_ratio, opts):
     '''
@@ -142,11 +142,11 @@ def _llhd(root, data, alphabet, alpha, lprior_ratio, opts):
     # This algorithm proceeds by deactivating leaves, recording the change in
     # likelihood after each step.
     l, vs = 0, []
-    while root.node_count > (0 if opts.complete else 1):
+    while root.node_count > (0 if opts.full else 1):
         v = tree.leaf(root, 0)
         nc, ac, vc = root.node_count, root.attachment_count, v.attachment_count
-        if opts.complete:
-            l -= complete_ldeath_ratio(v, alpha) + lprior_ratio(nc+ac, nc+ac-vc)
+        if opts.full:
+            l -= full_ldeath_ratio(v, alpha) + lprior_ratio(nc+ac, nc+ac-vc)
         else:
             l -= ldeath_ratio(v, alpha) + lprior_ratio(nc, nc-1)
         tree.deactivate(v)
@@ -155,8 +155,8 @@ def _llhd(root, data, alphabet, alpha, lprior_ratio, opts):
         tree.activate(v, data, alphabet, opts)
     return l
 
-def bf(data, alphabet, max_height=np.inf, alpha=None, prior='uniform',
-        complete=False, fringe=False, height_step=1, kind='sequence'):
+def bf(data, alphabet, max_height=np.inf, alpha=None, prior='uniform', 
+        full=False, fringe=False, height_step=1, kind='sequence'):
     '''
     Computes the probabilities of all possible Markov trees by brute force.
     
@@ -170,9 +170,9 @@ def bf(data, alphabet, max_height=np.inf, alpha=None, prior='uniform',
             initialised to an array of ones by default.
         prior: the distribution to use as a prior on tree size, one of
             'uniform', 'inverse' (1/k), and 'poisson' (1/k!).
-        complete: whether or not the tree should be interpreted as a complete
-            tree, in which case leaves will be viewed as internal nodes, and
-            their inactive children treated as leaves.
+        full: whether or not the tree should be interpreted as a full tree, in
+            which case leaves will be viewed as internal nodes, and their
+            inactive children treated as leaves.
         fringe: if true, strict internal nodes (whose children are all active)
             will not have their sample counts updated.
         height_step: the number of levels that should be added each time the
@@ -186,10 +186,10 @@ def bf(data, alphabet, max_height=np.inf, alpha=None, prior='uniform',
         generated the data.
     '''
     alpha = _verify_alpha(alpha, alphabet)
-    opts = tree.Options(complete, fringe, height_step, kind=kind)
+    opts = tree.Options(full, fringe, height_step, kind=kind)
     lpr = _prior_function(prior)
     root = tree.create_tree(height_step, data, alphabet, kind)
-    if not complete:
+    if not full:
         tree.activate(root, data, alphabet, opts)
     lsm = 0
     for s in _subtrees(root, 0, max_height, data, alphabet, opts):
@@ -221,7 +221,7 @@ def _subtrees(v, i, h, data, alphabet, opts):
     '''
     if not v.is_active and i == 0:
         yield
-        if v.attachment_count > 0 and h >= (1 if opts.complete else 0):
+        if v.attachment_count > 0 and h >= (1 if opts.full else 0):
             tree.activate(v, data, alphabet, opts)
     if v.is_active:
         if i == len(alphabet) - 1:

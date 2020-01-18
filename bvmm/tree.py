@@ -38,15 +38,16 @@ class Node:
         self.attachment_count = 0 # no. of valid (occurring), inactive nodes.
         self.sample_count = 0
         self.is_active = False
+        self.checkpoints = [] # data indices at which this state appears.
 
 class Options:
     '''
     A simple helper class used to ferry configuration options between functions.
 
     Args:
-        complete: whether or not the tree should be interpreted as a complete
-            tree, in which case leaves will be viewed as internal nodes, and
-            their inactive children treated as leaves.
+        full: whether or not the tree should be interpreted as a full tree, in
+            which case leaves will be viewed as internal nodes, and their
+            inactive children treated as leaves.
         fringe: if true, strict internal nodes (whose children are all active)
             will not have their sample counts updated.
         height_step: the number of levels that should be added each time the
@@ -58,9 +59,9 @@ class Options:
             impossible.
         kind: the data type, either 'sequence' or 'network'.
     '''
-    def __init__(self, complete=False, fringe=False, height_step=1,
+    def __init__(self, full=False, fringe=False, height_step=1,
             min_skip_prob=1/3, kind='sequence'):
-        self.complete = complete
+        self.full = full
         self.fringe = fringe
         self.height_step = height_step
         self.min_skip_prob = min_skip_prob
@@ -68,7 +69,7 @@ class Options:
 
 def create_tree(height, data, alphabet, kind='sequence'):
     '''
-    Creates a complete, inactive tree with initialised occurrence counts.
+    Creates a full, inactive tree with initialised occurrence counts.
 
     Args:
         height: the depth to which the tree should be grown (a singleton tree
@@ -94,6 +95,8 @@ def _add_children(v, depth, max_depth, alphabet):
             _add_children(w, depth+1, max_depth, alphabet)
 
 def _initialise_counts(v, data, alphabet, kind):
+    v.counts = np.zeros(len(alphabet))
+    v.checkpoints = []
     if kind.lower() == 'sequence':
         count_func = _sequence_counts
     elif kind.lower() == 'network':
@@ -102,65 +105,106 @@ def _initialise_counts(v, data, alphabet, kind):
         raise ValueError("Invalid data type specified. Valid options are "
                          "'sequence' and 'network'.")
     try:
-        for array in data:
-            count_func(v, array, alphabet)
+        for i, array in enumerate(data):
+            iter(array)
+            if kind == 'network' and len(array) > 0:
+                iter(array[0]) # the array should contain tuples.
+            count_func(v, array, alphabet, i)
     except TypeError:
-        count_func(v, data, alphabet)
+        count_func(v, data, alphabet, 0)
 
-def _sequence_counts(v, array, alphabet):
-    # This function traverses an array of data in reverse, at each datum
-    # incrementing counts along a path from the root of the subtree to one
-    # of its leaves according to the datum's prefix.
-    state = path_to(v)
-    m = len(state)
-    for n in range(len(array)-1, m-1, -1):
-        # Check if the substring ending at index n matches the current prefix.
-        matched = True
-        for k, x in enumerate(state):
-            if array[n-k-1] != x:
-                matched = False
-                break
-        w, k = v, len(state)+1
-        while matched:
-            if w.counts is None:
-                w.counts = np.zeros(len(alphabet))
-            w.counts[array[n]] += 1
-            if n-k >= 0 and w.children:
-                w = w.children[array[n-k]]
-                k += 1
-            else:
-                matched = False
+def _init_structs(v, alphabet, array_index):
+    if v.counts is None:
+        v.counts = np.zeros(len(alphabet))
+    while len(v.checkpoints) <= array_index:
+        v.checkpoints.append([])
 
-def _network_counts(v, array, alphabet):
-    # Processes an array of transition pairs, inferring paths within a
-    # network. A simple tree is used to maintain the most recent incoming
-    # path for each node.
-    cursors = {}
-    for i, j in array:
-        # Update the path to j by extending the one to i.
-        if i not in cursors:
-            cursors[i] = (i, None) # (symbol, parent).
-        c = cursors[i]
-        if j not in cursors or cursors[j][1] != c:
-            cursors[j] = (j, c)
-        # Check whether the path to i matches the current node's prefix.
-        matched = True
-        for x in path_to(v):
-            if c is None or c[0] != x:
-                matched = False
-                break
-            c = c[1]
-        # If so, increment the node's count and consider larger prefixes.
-        w = v
-        while matched:
-            if w.counts is None:
-                w.counts = np.zeros(len(alphabet))
-            w.counts[j] += 1
-            if c is not None and w.children:
-                w = w.children[c[0]]
-                c = c[1]
-            else:
-                matched = False
+def _sequence_counts(v, array, alphabet, array_index):
+    # To avoid traversing the entire array, each node keeps track of the indices
+    # at which its state (prefix string) appears -- specifically, the index of
+    # the first character following the prefix string. A node's checkpoints are
+    # necessarily a subset of those of its parent.
+    m = len(path_to(v)) # length of the prefix.
+    u = v.parent
+    uchks = u.checkpoints[array_index] if u is not None else range(len(array))
+    for j in uchks:
+        i = j - m # first index of the prefix.
+        if array[i] == v.index or v.parent is None:
+            w = v
+            while True: # update counts along the (extended) prefix's path.
+                _init_structs(w, alphabet, array_index)
+                w.counts[array[j]] += 1
+                w.checkpoints[array_index].append(j)
+                if i > 0 and w.children:
+                    i -= 1
+                    w = w.children[array[i]]
+                else:
+                    break
+
+def _network_counts(v, array, alphabet, array_index):
+    # Like we do for sequence data, we maintain checkpoints of where each state
+    # appears so that we can avoid having to traversing the whole data array
+    # each time we want to initialise a set of nodes' counts. Doing so for
+    # network data is tougher however, because states don't appear as a simple
+    # set of consecutive symbols -- the entries that make up a prefix path in
+    # the network are unlikely to be consecutive, and a single entry can be a
+    # part of multiple states that appear further on in the data. For example,
+    # the entries (a, b), ..., (b, c), (c, d), ..., (b, c) include the state
+    # 'ab' twice -- both times leading to the symbol 'c'. To keep track of all
+    # of this, each checkpoint is a triple, of preceding index, final symbol,
+    # and count. Preceding index refers to the index of the entry that would
+    # need to be added if the state were to be extended; for example the
+    # checkpoint for the state 'ab' with respect to the entries above (ignoring
+    # the omitted entries) would be (0, 'c', 2), and the checkpoints for 'abc'
+    # would be (1, 'd', 1). To make it easy to find preceding entries without
+    # traversing the data in reverse, we also initialise a map that contains,
+    # for each symbol, the indices of the entries in which it appears as a
+    # destination (second element).
+    dest_chks = _network_dests(v, array, alphabet, array_index)
+    if v.parent is None:
+        _init_structs(v, alphabet, array_index)
+        chks = v.checkpoints[array_index]
+        for k, (i, j) in enumerate(array):
+            v.counts[j] += 1
+            chks.append((k, j, 1))
+        for w in v.children:
+            _network_counts(w, array, alphabet, array_index)
+    else:
+        for k, j, c in v.parent.checkpoints[array_index]:
+            if array[k][0] == v.index:
+                w = v
+                while True:
+                    _init_structs(w, alphabet, array_index)
+                    w.counts[j] += c
+                    # Find the index that can be used to extend the state.
+                    i = array[k][0]
+                    if dest_chks[i] is None:
+                        break
+                    d = np.searchsorted(dest_chks[i], k) - 1 # last less than k.
+                    if d < 0:
+                        break
+                    k = dest_chks[i][d]
+                    w.checkpoints[array_index].append((k, j, c))
+                    if not w.children:
+                        break
+                    w = w.children[array[k][0]]
+        
+def _network_dests(v, array, alphabet, array_index):
+    root = _root(v)
+    if not hasattr(root, '_dest_checkpoints'):
+        root._dest_checkpoints = []
+    while len(root._dest_checkpoints) <= array_index:
+        root._dest_checkpoints.append(None)
+    if root._dest_checkpoints[array_index] is None:
+        # We store destination checkpoints as an array of indices for each
+        # possible destination symbol.
+        dest_chks = [None] * len(alphabet)
+        for k, (i, j) in enumerate(array):
+            if dest_chks[j] is None:
+                dest_chks[j] = []
+            dest_chks[j].append(k)
+        root._dest_checkpoints[array_index] = dest_chks
+    return root._dest_checkpoints[array_index]
 
 def update_counts(v, nodes=0, leaves=0, attachments=0):
     '''
@@ -180,18 +224,18 @@ def update_sample_counts(v, samples, opts):
         v: the root of the subtree to be updated.
         samples: the amount that should be added to each sample count.
     '''
-    if opts.complete and v.parent is not None and not v.parent.is_active:
+    if opts.full and v.parent is not None and not v.parent.is_active:
         return
-    elif not opts.complete and not v.is_active:
+    elif not opts.full and not v.is_active:
         return
 
     # A node is a fringe node if it is a leaf or if any of its valid children
     # are inactive.
-    on_fringe = (not v.is_active) if opts.complete else (v.node_count == 1)
+    on_fringe = (not v.is_active) if opts.full else (v.node_count == 1)
     for w in v.children:
         if w.counts is not None:
             update_sample_counts(w, samples, opts)
-            if not opts.complete and not w.is_active:
+            if not opts.full and not w.is_active:
                 on_fringe = True
     if not opts.fringe or on_fringe:
         v.sample_count += samples
@@ -205,6 +249,12 @@ def path_to(v):
     path = path_to(v.parent)
     path.append(v.index)
     return path
+
+def _root(v):
+    root = v
+    while root.parent is not None:
+        root = root.parent
+    return root
 
 def leaf(v, l):
     '''
@@ -232,10 +282,10 @@ def activate(v, data, alphabet, opts):
     '''
     Activates a node and, if necessary, initialises its children.
 
-    If the `complete` option is true, this function will initialise the
-    descendants of `v` to a depth of two where necessary, because in the
-    complete case a child node will only be counted as a possible attachment if
-    at least one of its children is valid as well.
+    If the `full` option is true, this function will initialise the descendants
+    of `v` to a depth of two where necessary, because in the full case a child
+    node will only be counted as a possible attachment if at least one of its
+    children is valid as well.
 
     Args:
         v: the valid attachment node to be activated: `v` must be inactive, with
@@ -247,18 +297,17 @@ def activate(v, data, alphabet, opts):
     v.node_count = 1
     v.leaf_count = 1
     v.attachment_count = 0
-    if not opts.complete:
+    if not opts.full:
         if not v.children:
             _add_children(v, 1, opts.height_step, alphabet)
-            v.counts = np.zeros(len(alphabet)) # counts will be reinitialised.
             _initialise_counts(v, data, alphabet, opts.kind)
         for w in v.children:
             if w.counts is not None:
                 w.attachment_count = 1
                 v.attachment_count += 1
     else:
-        # In the complete case, a child node is a valid attachment if it has
-        # valid children (with non-zero occurrence counts) of its own. If these
+        # In the full case, a child node is a valid attachment if it has valid
+        # children (with non-zero occurrence counts) of its own. If these
         # depth-two descendants have not yet been created, we know that v has
         # never been activated, and we can safely reinitialise its children
         # without affecting any sample counts.
@@ -266,7 +315,6 @@ def activate(v, data, alphabet, opts):
             if w.counts is not None and not w.children:
                 v.children = []
                 _add_children(v, 1, opts.height_step+1, alphabet)
-                v.counts = np.zeros(len(alphabet))
                 _initialise_counts(v, data, alphabet, opts.kind)
                 break
         for w in v.children:

@@ -29,7 +29,7 @@ class Counts:
                 'skips:  {}').format(b, ba, bf, d, da, df, self.skips)
 
 def mcmc(data, alphabet, samples, period=1, min_skip_prob=0.1, alpha=None,
-        prior='uniform', complete=False, fringe=False, height_step=1,
+        prior='poisson', full=False, fringe=False, height_step=1,
         kind='sequence'):
     '''
     Samples trees according to their likelihoods using Markov chain Monte Carlo.
@@ -48,9 +48,9 @@ def mcmc(data, alphabet, samples, period=1, min_skip_prob=0.1, alpha=None,
             initialised to an array of ones by default.
         prior: the distribution to use as a prior on tree size, one of
             'uniform', 'inverse' (1/k), and 'poisson' (1/k!).
-        complete: whether or not the tree should be interpreted as a complete
-            tree, in which case leaves will be viewed as internal nodes, and
-            their inactive children treated as leaves.
+        full: whether or not the tree should be interpreted as a full tree, in
+            which case leaves will be viewed as internal nodes, and their
+            inactive children treated as leaves.
         fringe: if true, strict internal nodes (whose children are all active)
             will not have their sample counts updated.
         height_step: the number of levels that should be added each time the
@@ -67,10 +67,10 @@ def mcmc(data, alphabet, samples, period=1, min_skip_prob=0.1, alpha=None,
     '''
     counts = Counts()
     alpha = likelihood._verify_alpha(alpha, alphabet)
-    opts = tree.Options(complete, fringe, height_step, min_skip_prob, kind)
+    opts = tree.Options(full, fringe, height_step, min_skip_prob, kind)
     lpr = likelihood._prior_function(prior)
     root = tree.create_tree(height_step, data, alphabet, kind)
-    if not complete:
+    if not full:
         tree.activate(root, data, alphabet, opts)
     for s in range(samples*period):
         nc, ac = root.node_count, root.attachment_count
@@ -89,7 +89,7 @@ def mcmc(data, alphabet, samples, period=1, min_skip_prob=0.1, alpha=None,
         if (s+1) % period == 0:
             tree.update_sample_counts(root, 1, opts=opts)
     likelihood._scale_sample_counts(root, 1/samples)
-    while root.node_count > (0 if opts.complete else 1):
+    while root.node_count > (0 if opts.full else 1):
         tree.deactivate(tree.leaf(root, 0))
     return root, counts
 
@@ -129,8 +129,8 @@ def _death_prob(v, root, alpha, lprior_ratio, opts):
     '''
     nc, lc, ac = root.node_count, root.leaf_count, root.attachment_count
     nac = ac-v.attachment_count+1
-    if opts.complete:
-        lr = likelihood.complete_ldeath_ratio(v, alpha)
+    if opts.full:
+        lr = likelihood.full_ldeath_ratio(v, alpha)
         pr = lprior_ratio(nc+ac, nc-1+nac)
     else:
         lr = likelihood.ldeath_ratio(v, alpha)
@@ -144,9 +144,9 @@ def _move_probs(node_count, attachment_count, opts):
     Returns the probabilities of proposing birth and death moves, respectively.
     '''
     move_prob = 1-opts.min_skip_prob
-    if node_count == (0 if opts.complete else 1) and attachment_count == 0:
+    if node_count == (0 if opts.full else 1) and attachment_count == 0:
         return 0, 0
-    elif node_count == (0 if opts.complete else 1):
+    elif node_count == (0 if opts.full else 1):
         return move_prob, 0
     elif attachment_count == 0:
         return 0, move_prob

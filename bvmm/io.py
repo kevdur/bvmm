@@ -76,21 +76,21 @@ def apply_alphabet(data, alphabet, kind='sequence'):
     except TypeError:
         return apply_func(data)
 
-def print_tree(v, alphabet, complete=False, min_samples=1e-16, max_counts=None,
+def print_tree(v, alphabet, full=False, min_samples=1e-16, max_counts=None,
         verbose=False, prefix=''):
     '''
     Prints details of a tree's nodes, in depth-first order.
 
-    Nodes are printed if they are active (or in the case of complete trees if
-    they have an active parent) or if their sample count is greater than or
-    equal to the given minimum. Nodes with no associated symbol counts are
-    hidden by default.
+    Nodes are printed if they are active (or in the case of full trees if they
+    have an active parent) or if their sample count is greater than or equal to
+    the given minimum. Nodes with no associated symbol counts are hidden by
+    default.
 
     Args:
         alphabet: a list containing the symbols represented by the indices.
-        complete: whether or not the tree should be interpreted as a complete
-            tree, in which case leaves will be viewed as internal nodes, and
-            their inactive children treated as leaves.
+        full: whether or not the tree should be interpreted as a full tree, in
+            which case leaves will be viewed as internal nodes, and their
+            inactive children treated as leaves.
         min_samples: nodes with fewer than `min_samples` samples will not be
             printed.
         max_counts: if specified, the number of symbol counts printed for each
@@ -100,7 +100,7 @@ def print_tree(v, alphabet, complete=False, min_samples=1e-16, max_counts=None,
         prefix: a prefix string to attach to all of the printed nodes (used
             internally for recursive calls).
     '''
-    valid = _valid(v, complete, min_samples) 
+    valid = _valid(v, full, min_samples) 
     if not valid or v.counts is None and not verbose:
         return
 
@@ -113,7 +113,7 @@ def print_tree(v, alphabet, complete=False, min_samples=1e-16, max_counts=None,
     else:
         cnts = sorted(zip(alphabet, v.counts), key=lambda z: z[1], reverse=True)
         cnts = cnts[:max_counts]
-        cnts = ', '.join(x + ': ' + _num_str(c) for x, c in cnts if c > 0)
+        cnts = ', '.join(str(x) + ': ' + _num_str(c) for x, c in cnts if c > 0)
 
     if verbose:
         print('{:5} {} [{}]'.format(prefix + ':', smpl, cnts))
@@ -124,8 +124,7 @@ def print_tree(v, alphabet, complete=False, min_samples=1e-16, max_counts=None,
     else:
         print('{:5} {} [{}]'.format(prefix + ':', smpl, cnts))
     for w in v.children:
-        print_tree(w, alphabet, complete, min_samples, max_counts, verbose,
-                   prefix)
+        print_tree(w, alphabet, full, min_samples, max_counts, verbose, prefix)
 
 def _num_str(x, decimal=2, padding=0):
     if x == int(x):
@@ -133,22 +132,21 @@ def _num_str(x, decimal=2, padding=0):
     else:
         return '{{:{}.{}f}}'.format(padding, decimal).format(x)
 
-def write_tree(v, alphabet, filename, complete=False, min_samples=1e-16,
+def write_tree(v, alphabet, filename, full=False, min_samples=1e-16,
         prefix=''):
     '''
     Writes a simple representation of a tree to a .net (modified Pajek) file.
 
-    Nodes are printed if they are active (or in the case of complete trees if
-    they have an active parent) or if their sample count is greater than or
-    equal to the given minimum. Nodes with no associated symbol counts are
-    ignored.
+    Nodes are printed if they are active (or in the case of full trees if they
+    have an active parent) or if their sample count is greater than or equal to
+    the given minimum. Nodes with no associated symbol counts are ignored.
 
     Args:
         alphabet: a list containing the symbols represented by the indices.
         filename: the full path of the output file.
-        complete: whether or not the tree should be interpreted as a complete
-            tree, in which case leaves will be viewed as internal nodes, and
-            their inactive children treated as leaves.
+        full: whether or not the tree should be interpreted as a full tree, in
+            which case leaves will be viewed as internal nodes, and their
+            inactive children treated as leaves.
         min_samples: nodes with fewer than `min_samples` samples will not be
             printed.
         prefix: a prefix string to attach to all of the printed nodes.
@@ -164,31 +162,31 @@ def write_tree(v, alphabet, filename, complete=False, min_samples=1e-16,
         if v.parent is not None:
             f.write('{} {}\n'.format(nodes[v.parent], nodes[v]))
 
-    nodes = _visit_valid(append_node, v, complete, min_samples, [])
+    nodes = _visit_valid(append_node, v, full, min_samples, [])
     nodes = {v: i+1 for i, v in enumerate(nodes)} # number the nodes.
     if len(nodes) == 0:
         return
     with open(filename, 'w') as f:
         f.write('*Vertices {}\n'.format(len(nodes)))
-        _visit_valid(write_node, v, complete, min_samples, prefix)
+        _visit_valid(write_node, v, full, min_samples, prefix)
         f.write('*Edges {}\n'.format(len(nodes)-1))
-        _visit_valid(write_edges, v, complete, min_samples)
+        _visit_valid(write_edges, v, full, min_samples)
 
-def _valid(v, complete=False, min_samples=1e-16):
+def _valid(v, full=False, min_samples=1e-16):
     if v.sample_count < min_samples:
-        if complete and v.parent is not None and not v.parent.is_active:
+        if full and v.parent is not None and not v.parent.is_active:
             return False
-        elif not complete and not v.is_active:
+        elif not full and not v.is_active:
             return False
     return True
 
-def _visit_valid(f, v, complete=False, min_samples=1e-16, args=None):
-    if not _valid(v, complete, min_samples):
+def _visit_valid(f, v, full=False, min_samples=1e-16, args=None):
+    if not _valid(v, full, min_samples):
         return
     if args is not None:
         args = f(v, args)
     else:
         f(v)
     for w in v.children:
-        _visit_valid(f, w, complete, min_samples, args)
+        _visit_valid(f, w, full, min_samples, args)
     return args

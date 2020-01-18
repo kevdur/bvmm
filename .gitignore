@@ -1,6 +1,5 @@
 .DS_Store
 bvmm/__pycache__/
-dat/
 doc/*.dvi
 doc/*.synctex.gz
 doc/*.pdf

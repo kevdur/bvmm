@@ -7,7 +7,7 @@ import numpy as np
 from . import tree
 from . import likelihood
 
-def rand_tree(n, alphabet, alpha):
+def rand_tree(n, alphabet, alpha=None):
     '''
     Returns a random tree whose counts are random probability vectors.
 

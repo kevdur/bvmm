@@ -8,7 +8,7 @@ import numpy as np
 from . import tree
 from . import likelihood
 
-def mlhd(data, alphabet, runs, alpha=None, prior='uniform', complete=False,
+def mlhd(data, alphabet, runs, alpha=None, prior='poisson', full=False,
         height_step=1, kind='sequence'):
     '''
     Estimates the maximum likelihood or a posteriori tree for a given data set.
@@ -23,9 +23,9 @@ def mlhd(data, alphabet, runs, alpha=None, prior='uniform', complete=False,
             the best result is returned.
         prior: the distribution to use as a prior on tree size, one of
             'uniform', 'inverse' (1/k), and 'poisson' (1/k!).
-        complete: whether or not the tree should be interpreted as a complete
-            tree, in which case leaves will be viewed as internal nodes, and
-            their inactive children treated as leaves.
+        full: whether or not the tree should be interpreted as a full tree, in
+            which case leaves will be viewed as internal nodes, and their
+            inactive children treated as leaves.
         height_step: the number of levels that should be added each time the
             tree's limits are reached and it needs to be extended with new,
             inactive nodes.
@@ -35,7 +35,7 @@ def mlhd(data, alphabet, runs, alpha=None, prior='uniform', complete=False,
         The root of the estimated tree.
     '''
     alpha = likelihood._verify_alpha(alpha, alphabet)
-    opts = tree.Options(complete, height_step=height_step, kind=kind)
+    opts = tree.Options(full, height_step=height_step, kind=kind)
     lpr = likelihood._prior_function(prior)
     ml, mroot = None, None
     for r in range(runs):
@@ -48,7 +48,7 @@ def _mlhd(data, alphabet, alpha, lprior_ratio, opts):
     # This function attempts to find a tree of maximum likelihood by activating
     # nodes randomly until an increase in likelihood is no longer possible.
     root = tree.create_tree(opts.height_step, data, alphabet, opts.kind)
-    if not opts.complete:
+    if not opts.full:
         tree.activate(root, data, alphabet, opts)
     l, increased = 1, True
     while increased:
@@ -56,9 +56,9 @@ def _mlhd(data, alphabet, alpha, lprior_ratio, opts):
         for a in np.random.permutation(root.attachment_count):
             v = tree.attachment(root, a)
             nc, ac = root.node_count, root.attachment_count
-            if opts.complete:
+            if opts.full:
                 vc = sum(w.counts is not None for w in v.children)
-                lr = likelihood.complete_lbirth_ratio(v, alpha) + \
+                lr = likelihood.full_lbirth_ratio(v, alpha) + \
                      lprior_ratio(nc+ac, nc+ac+vc)
             else:
                 lr = likelihood.lbirth_ratio(v, alpha) + lprior_ratio(nc, nc+1)
