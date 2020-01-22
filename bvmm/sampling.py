@@ -103,8 +103,8 @@ def _birth(root, data, alphabet, alpha, lprior_ratio, opts):
     # after the node's children have been initialised (during activation).
     v = tree.attachment(root, np.random.randint(root.attachment_count))
     tree.activate(v, data, alphabet, opts)
-    death_prob = _death_prob(v, root, alpha, lprior_ratio, opts)
-    if death_prob != 0 and np.random.rand() > 1/death_prob:
+    ldeath_prob = _ldeath_prob(v, root, alpha, lprior_ratio, opts)
+    if ldeath_prob != 0 and math.log(np.random.rand()) > -ldeath_prob:
         tree.deactivate(v)
         return False
     return True
@@ -114,13 +114,13 @@ def _death(root, alpha, lprior_ratio, opts):
     Attempts a death move, returning true if the move was accepted.
     '''
     v = tree.leaf(root, np.random.randint(root.leaf_count))
-    death_prob = _death_prob(v, root, alpha, lprior_ratio, opts)
-    if np.random.rand() <= death_prob:
+    ldeath_prob = _ldeath_prob(v, root, alpha, lprior_ratio, opts)
+    if math.log(np.random.rand()) <= ldeath_prob:
         tree.deactivate(v)
         return True
     return False
 
-def _death_prob(v, root, alpha, lprior_ratio, opts):
+def _ldeath_prob(v, root, alpha, lprior_ratio, opts):
     '''
     Returns the acceptance probability of a death move involving a given node.
 
@@ -137,7 +137,7 @@ def _death_prob(v, root, alpha, lprior_ratio, opts):
         pr = lprior_ratio(nc, nc-1)
     dm = _move_probs(nc, ac, opts)[1]
     bm = _move_probs(nc-1, nac, opts)[0]
-    return math.exp(lr+pr)*(bm/nac)*(lc/dm)
+    return lr+pr + math.log((bm/nac)*(lc/dm))
 
 def _move_probs(node_count, attachment_count, opts):
     '''

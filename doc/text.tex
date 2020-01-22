@@ -1,0 +1,22 @@
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[trim axis left, trim axis right]
+\begin{axis}[
+  title={Estimated State Probabilities},
+  xlabel=\(\hat{\Pb}(s)\),
+  ylabel={Frequency},
+  bar width=7pt,
+  width=12cm,
+  height=8cm
+]
+  \addplot[ybar,cbblue,fill=cbblue]
+    coordinates{(0.02, 1425) (0.06, 304) (0.1, 141) (0.14, 88) (0.18, 55)
+      (0.22, 51) (0.26, 38) (0.3, 40) (0.34, 34) (0.38, 38) (0.42, 24)
+      (0.46, 19) (0.5, 24) (0.54, 34) (0.58, 40) (0.62, 33) (0.66, 47) (0.7, 59)
+      (0.74, 81) (0.78, 141) (0.82, 177) (0.86, 300) (0.9, 482) (0.94, 864)
+      (0.98, 1715)};
+\end{axis}
+\end{tikzpicture}
+\caption{Results.}
+\label{fig:text 2c hist}
+\end{figure}
