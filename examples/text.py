@@ -18,12 +18,12 @@ def preprocess(infilename, outfilename, allow_compound=True):
             v, w = w, x
         g.write(''.join(text))
 
-def read_data(filename, words=False, max_length=None):
+def read_data(filename, words=False, sep='_', max_length=None):
     with open(filename, 'r') as f:
         if words:
-            data = ['␣'+w for w in f.read().split()]
+            data = [sep+w for w in f.read().split()]
         else:
-            data = [x for x in '␣'.join(f.read().split())]
+            data = [x for x in sep.join(f.read().split())]
     if max_length is not None:
         data = data[:max_length]
     data, alphabet = bvmm.create_index(data)
@@ -81,13 +81,13 @@ print(counts)
 
 #%% Dickens by word ============================================================
 %%time
-filename = 'dat/text_dickens.txt'
+filename = 'dat/text_dickens_10.txt'
 data, alphabet = read_data(filename, words=True)
 mcmc, counts = bvmm.mcmc(data, alphabet, 100_000, 10)
 bvmm.print_tree(mcmc, alphabet, min_samples=0.1, max_counts=5)
 print(counts)
-save_tree(mcmc, 'out/text_2w.pickle')
-# mcmc = load_tree('out/text_2w.pickle')
-bvmm.write_tree(mcmc, alphabet, 'out/text_2w.net', min_samples=0.1)
+save_tree(mcmc, 'out/text_2w_10.pickle')
+# mcmc = load_tree('out/text_2w_10.pickle')
+bvmm.write_tree(mcmc, alphabet, 'out/text_2w_10.net', min_samples=0.1)
 
 # %%

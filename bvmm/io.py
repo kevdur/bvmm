@@ -132,8 +132,8 @@ def _num_str(x, decimal=2, padding=0):
     else:
         return '{{:{}.{}f}}'.format(padding, decimal).format(x)
 
-def write_tree(v, alphabet, filename, full=False, min_samples=1e-16,
-        prefix=''):
+def write_tree(v, alphabet, filename, full=False, rooted=True,
+        min_samples=1e-16, prefix=''):
     '''
     Writes a simple representation of a tree to a .net (modified Pajek) file.
 
@@ -147,9 +147,11 @@ def write_tree(v, alphabet, filename, full=False, min_samples=1e-16,
         full: whether or not the tree should be interpreted as a full tree, in
             which case leaves will be viewed as internal nodes, and their
             inactive children treated as leaves.
+        rooted: whether to include the root node `v` and its edges in the
+            file.
         min_samples: nodes with fewer than `min_samples` samples will not be
-            printed.
-        prefix: a prefix string to attach to all of the printed nodes.
+            written to file.
+        prefix: a prefix string to attach to all of the written nodes.
     '''
     def append_node(v, nodes):
         nodes.append(v)
@@ -159,18 +161,23 @@ def write_tree(v, alphabet, filename, full=False, min_samples=1e-16,
         f.write('{} "{}" {}\n'.format(nodes[v], prefix, v.sample_count))
         return prefix
     def write_edges(v):
-        if v.parent is not None:
+        if v.parent is not None and v.parent in nodes:
             f.write('{} {}\n'.format(nodes[v.parent], nodes[v]))
 
-    nodes = _visit_valid(append_node, v, full, min_samples, [])
+    roots = [v] if rooted else v.children
+    nodes = []
+    for w in roots:
+        _visit_valid(append_node, w, full, min_samples, nodes)
     nodes = {v: i+1 for i, v in enumerate(nodes)} # number the nodes.
     if len(nodes) == 0:
         return
     with open(filename, 'w') as f:
         f.write('*Vertices {}\n'.format(len(nodes)))
-        _visit_valid(write_node, v, full, min_samples, prefix)
+        for w in roots:
+            _visit_valid(write_node, w, full, min_samples, prefix)
         f.write('*Edges {}\n'.format(len(nodes)-1))
-        _visit_valid(write_edges, v, full, min_samples)
+        for w in roots:
+            _visit_valid(write_edges, w, full, min_samples)
 
 def _valid(v, full=False, min_samples=1e-16):
     if v.sample_count < min_samples:

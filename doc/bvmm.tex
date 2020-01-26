@@ -62,7 +62,8 @@
 
 % Title %=======================================================================
 
-\title{Bayesian Variable-order Markov Models}
+\title{An Application of Markov Chain Monte Carlo Methods to Variable-order
+  Markov Models}
 \author{Kevin Durant}
 \date{}
 
@@ -73,7 +74,15 @@
 \maketitle
 
 \begin{abstract}
-To do:
+This article describes the solution of a certain `toy' problem: the
+implementation of a Markov chain Monte Carlo sampler over the space of
+variable-order Markov models. The goal of the sampling process is to determine
+what sort of Markov dependencies may be present in a given data set, and then to
+interpret these dependencies as `significant' subsequences that effect a strong
+influence on the symbols that follow them. The somewhat broader goal of the
+entire article is to demonstrate the interest I have in the model selection
+problem, as well as a familiarity with Bayesian techniques and their
+implementations. Still to do:
 \begin{itemize}
   \item Use `symbol' and `character' consistently.
 \end{itemize}
@@ -81,76 +90,76 @@ To do:
 
 \section{Introduction} %========================================================
 
-% A year or two ago, while working on a problem involving temporal communication
-% networks (in which the underlying edge events are all timestamped, and thus
-% ordered), a peripheral question arose that seemed worth trying to answer:
-% \textit{are there any directed paths within the network that are particularly
-% predictable?} Phrased another way: \textit{are there nodes in the network whose
-% outgoing edges can be predicted based on their most recent incoming edges? And
-% to what depth?}
+A year or two ago, while working on a problem involving temporal communication
+networks (in which the underlying edge events are all timestamped, and thus
+ordered), a peripheral question arose that seemed worth trying to answer:
+\textit{are there any directed paths within the network that are particularly
+predictable?} Phrased another way: \textit{are there nodes in the network whose
+outgoing edges can be predicted based on their most recent incoming edges? And
+to what depth?}
 
-% Dependencies such as these are interesting in the context of communication
-% networks because they point to the presence of certain message-passing `chains'.
-% For example, it might be the case that whenever a node~$B$'s most recent
-% incoming message originated at node~$A$, the next message sent by~$B$ is likely
-% to be to some third node~$C$. If this is not the usual behaviour for messages
-% sent from~$B$, then the distribution of its outgoing edges is conditionally
-% dependent on its last incoming edge. We are interested in determing, for a given
-% network, to what extent---if any---this dependence holds. And specifically: with
-% respect to which nodes, which incoming edges, and to what depth.
+Dependencies such as these are interesting in the context of communication
+networks because they point to the presence of certain message-passing `chains'.
+For example, it might be the case that whenever a node~$B$'s most recent
+incoming message originated at node~$A$, the next message sent by~$B$ is likely
+to be to some third node~$C$. If this is not the usual behaviour for messages
+sent from~$B$, then the distribution of its outgoing edges is conditionally
+dependent on its last incoming edge. We are interested in determing, for a given
+network, to what extent---if any---this dependence holds. And specifically: with
+respect to which nodes, which incoming edges, and to what depth.
 
-% The problem can also be stated without the need for network terminology, for
-% with a bit of thought one sees (Section~\ref{sec:templ soc netw}) that each
-% uninterrupted path within a temporal network can also be represented as a
-% sequence of nodes, and thus simply as a string of symbols~$x_1 x_2 \dots x_N$.
-% The objective then is to find substrings~$x_{n-k} \dots x_{n-1}$ that allow the
-% next symbol~$x_n$ to be predicted (to some extent), for we can then
-% regard~$x_{n-1}$ as conditionally dependent on the depth~$k-1$ substring for the
-% purpose of predicting the symbol~$x_n$ that follows it.
+The problem can also be stated without the need for network terminology, for
+with a bit of thought one sees (Section~\ref{sec:templ soc netw}) that each
+uninterrupted path within a temporal network can also be represented as a
+sequence of nodes, and thus simply as a string of symbols~$x_1 x_2 \dots x_N$.
+The objective then is to find substrings~$x_{n-k} \dots x_{n-1}$ that allow the
+next symbol~$x_n$ to be predicted (to some extent), for we can then
+regard~$x_{n-1}$ as conditionally dependent on the depth~$k-1$ substring for the
+purpose of predicting the symbol~$x_n$ that follows it.
 
-% It is perhaps worth mentioning here that we are not interested in dependence on
-% any sort of transformed substring
+It is perhaps worth mentioning here that we are not interested in dependence on
+any sort of transformed substring
 
-% The obvious probabilistic framework to adopt when approaching this problem is
-% that of Markov chains, however it's worth emphasising the fact that our interest
-% is not so much in modelling the outgoing edge distribution of each node to some
-% depth for the purposes of prediction, but rather in pruning the set of all
-% Markov states until only those that are truly useful for prediction of their
-% next edge remain.
+The obvious probabilistic framework to adopt when approaching this problem is
+that of Markov chains, however it's worth emphasising the fact that our interest
+is not so much in modelling the outgoing edge distribution of each node to some
+depth for the purposes of prediction, but rather in pruning the set of all
+Markov states until only those that are truly useful for prediction of their
+next edge remain.
 
-% on a per-case basis, whether the Markov assumption is a reasonable one; and to
-% what order in each case. Since independence from any directly preceding symbols
-% can be viewed as a Markov property of order zero, we can find significant
-% subsequences by assuming the Markov property throughout, and asking what order
-% is most likely in each case.
-
-
+on a per-case basis, whether the Markov assumption is a reasonable one; and to
+what order in each case. Since independence from any directly preceding symbols
+can be viewed as a Markov property of order zero, we can find significant
+subsequences by assuming the Markov property throughout, and asking what order
+is most likely in each case.
 
 
 
-% It would be interesting (in our humble opinion) to
-% know edge to terminate at~$B$ node~$B$'s incoming edges is~$A \longrightarrow
-% B$, and the next edge involving~$B$ is~$B \longrightarrow C$, then 
-
-% With regard to the second phrasing of the question above, it's worth emphasising
-% the use of the phrase `certain the fact that we are not trying to answer the question of whether a given node's
-% incoming edges are significant \emph{in general}, but rather \emph{which} of its
-% incoming neighbours (if any) are useful for prediction, in what way, and to what
-% depth.
 
 
-% \textit{are certain directed paths
-% within the network more predictable than others?} Or, phrased another way:
-% \textit{are there sequences of edges that reliably determine the edges that
-% follow them?} In essence, we were curious to know whether there were elements of
-% the data that could be said to be strongly influenced by those that directly
-% preceded them; and if so, to determine these elements algorithmically.
+It would be interesting (in our humble opinion) to
+know edge to terminate at~$B$ node~$B$'s incoming edges is~$A \longrightarrow
+B$, and the next edge involving~$B$ is~$B \longrightarrow C$, then 
 
-% Of course the social networks that sparked the search for repetitive were simply
-% a particular (and convenient) way of viewing a set of sequential data---any
-% sequence of symbols from a given alphabet can be viewed in the same way. So the
-% above question should really be phrased with respect to arbitrary sequences
-% instead: assuming that the Markov property holds for 
+With regard to the second phrasing of the question above, it's worth emphasising
+the use of the phrase `certain the fact that we are not trying to answer the question of whether a given node's
+incoming edges are significant \emph{in general}, but rather \emph{which} of its
+incoming neighbours (if any) are useful for prediction, in what way, and to what
+depth.
+
+
+\textit{are certain directed paths
+within the network more predictable than others?} Or, phrased another way:
+\textit{are there sequences of edges that reliably determine the edges that
+follow them?} In essence, we were curious to know whether there were elements of
+the data that could be said to be strongly influenced by those that directly
+preceded them; and if so, to determine these elements algorithmically.
+
+Of course the social networks that sparked the search for repetitive were simply
+a particular (and convenient) way of viewing a set of sequential data---any
+sequence of symbols from a given alphabet can be viewed in the same way. So the
+above question should really be phrased with respect to arbitrary sequences
+instead: assuming that the Markov property holds for 
 
 \section{Methodology} %=========================================================
 
@@ -283,6 +292,8 @@ Following on from the discussion above, there are two problems that must be
 solved: we must infer the conditional distributions~\(\{\,\Pb(x_n \mid s) : s
 \in \mc{S}\,\}\), and then use this information to compare the relative
 (marginal) likelihoods of the models~\(\mc{M}\).
+
+\subsection{Independence probabilities} %=======================================
 
 \subsection{Bayesian variable-order Markov models} %============================
 
@@ -586,8 +597,6 @@ set~\(\Pb(\mc{S})\) to the Poisson distribution of rate~1:
 \end{equation*}
 where \(\abs{\mc{S}}\) is the number of nodes in the state tree~\(\mc{S}\).
 
-\subsection{Independence probabilities} %=======================================
-
 \section{Experiments} %=========================================================
 
 The goal of this work is first and foremost to demonstrate that variable-order
@@ -872,13 +881,15 @@ provide greater support for each of them.
 %
 \begin{figure}[htbp]
   \includegraphics[width=\textwidth]{figures/synthetic 1}
-\caption{Results.}
+\caption{State probabilities inferred from a synthetic data sequence of 10\,000
+  characters generated using 25 unique symbols.}
 \label{fig:25-character model 1}
 \end{figure}
 %
 \begin{figure}[htbp]
   \includegraphics[width=\textwidth]{figures/synthetic 3}
-\caption{Results.}
+\caption{State probabilities inferred from a synthetic data sequence of
+  1\,000\,000 characters generated using 25 unique symbols.}
 \label{fig:25-character model 2}
 \end{figure}
 
@@ -921,8 +932,8 @@ symbol~`o'---as in the word~`comfort' and its various derivatives.
 Rather more specific, interesting prefixes arise in the Dickens text as well,
 for example the five-character prefix~`the␣h', which also includes a whitespace
 symbol. A number of related prefixes are present in the inferred state tree, all
-with marginal probabilities greater than~0.9:~`␣h', `e␣h', `he_h', `the_h',
-`f␣h', and~`u␣h'. Each of these states implies a slightly different distribution
+with marginal probabilities greater than~0.9:~` h', `e h', `he h', `the h',
+`f h', and~`u h'. Each of these states implies a slightly different distribution
 over the vowel that follows the letter~`h'.
 
 A histogram showing the overall distribution of the marginal probabilities
@@ -952,6 +963,20 @@ significantly different to that of the root state~\(\lambda\), whose most likely
 elements are~`the'~(14 occurrences), `of'~(8), `and`~(7), and~`her'~(6).
 %
 \input{text.tex}
+%
+\begin{figure}[htbp]
+  \includegraphics[width=\textwidth]{figures/text 1c}
+\caption{State probabilities inferred from the poem \textit{Ode on Melancholy}
+  by John Keats, treating individual characters as symbols.}
+\label{fig:text 1c}
+\end{figure}
+%
+\begin{figure}[htbp]
+  \includegraphics[width=\textwidth]{figures/text 1w}
+\caption{State probabilities inferred from the poem \textit{Ode on Melancholy}
+  by John Keats, treating words as symbols.}
+\label{fig:text 1w}
+\end{figure}
 
 \begin{table}[htbp]
 \centering
@@ -979,9 +1004,48 @@ elements are~`the'~(14 occurrences), `of'~(8), `and`~(7), and~`her'~(6).
 
 \subsection{Temporal networks}\label{sec:temporal networks} %===================
 
+The variable-order Markov models described here can also be applied to forms of
+data that differ slightly from the more typical sequences dealt with above---as
+long as Markov states can be associated with each symbol in the data set. In
+this section we consider temporal network (or graph) data, which are
+\emph{ordered} sequences of source-destination pairs~\(\ub{x} = (v_1, w_1),
+(v_2, w_2), \dots\) in which the~\(v_i\) and~\(w_i\) are both elements of a node
+set~\(\mc{A}\).
 
+We are interested in directed, temporal paths made up of edges in the network;
+these will appear as non-consecutive pairs in the data set:~\((v_{i_1},
+w_{i_1}), (v_{i_2} = w_{i_1}, w_{i_2}), \dots\). Notice how every node along a
+path (apart from the initial source and final destination) appears twice---first
+as a destination and second as a source. It will prove convenient to treat
+source nodes~\(v_i\) as states and destinations~\(w_i\) as symbols.
 
-\subsection{Genetic data}\label{sec:genetic} %==================================
+To construct a prefix for an observed symbol~\(w_n\), one simply needs to follow
+the path of edges that terminates at~\(w_n\) in reverse, considering states
+along the way. Adopting the indices of the previous paragraph, the prefix of
+length~\(k\) for the symbol~\(w_{i_n}\) would be~\(v_{i_{n-k+1}}, \dots,
+v_{i_{n-1}}, v_{i_n}\).
+
+Apart from this artificial separation between states and symbols, temporal
+networks can be treated in much the same way as straightforward
+sequences.\footnote{Note however that we have not placed any restrictions on the
+edge paths that result in prefixes here; one could for example take timestamps
+into account and require that an incoming edge occur within a certain amount of
+time of the following outgoing edge for its source to be considered as the next
+possible state in the prefix.} We have treated two temporal networks here: one
+derived from emails sent within a research institution, and the other from phone
+calls made between participants of a social network study.
+
+The inferred probabilities for the two networks are shown as state trees in
+Figures~\ref{fig:network 1} and~\ref{fid:network 2}. One sees that the vast
+majority of prefixes are simply first-order Markov states, which simply implies
+that nodes have their own outgoing probability distributions (as opposed to a
+global distribution over edge destinations). In a few cases second-order states
+are also present: these almost always correspond to reciprocal communication,
+i.e., edge sequences of the form~\((v_j, v_i)), (v_i, v_j)\). We have also
+included a sample of states from each data set in Table~\ref{tab:network}, where
+one can see the most likely destinations conditioned on each state.
+
+% \subsection{Genetic data}\label{sec:genetic} %==================================
 
 \subsection{Unstructured data}\label{sec:unstructured} %========================
 
@@ -1169,6 +1233,6 @@ likelihoods over models that include a particular node~\(s\). With a bit of work
 though, we can extend the asymptotic expression derived above to such sums as
 well.
 
-\section{Implementation notes} %================================================
+% \section{Implementation notes} %================================================
 
 \end{document}
