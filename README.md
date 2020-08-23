@@ -8,8 +8,8 @@ which can be naturally represented as context trees.
 The point of the exercise is to uncover dependencies among symbols in sequential
 data sets, which is done by sampling from the posterior model distribution and
 aggregating the dependencies observed in each model. The results are
-interesting, but admittedly more from a an interest's-sake perspective than one
-of practical application.
+interesting, but admittedly more from an interest's-sake perspective than one of
+practical application.
 
 See the [write-up](doc/bvmm.pdf) for full details.
 
