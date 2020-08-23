@@ -37,13 +37,14 @@ bvmm.write_tree(mcmc, alphabet, filename, min_samples=0.1)
 
 #%% EU
 %%time
-data, alphabet = read_data('dat/network_eu.txt', sep='_')
+k = 3
+data, alphabet = read_data(f'dat/network_eu{k}.txt', sep='_')
 mcmc, counts = bvmm.mcmc(data, alphabet, 100_000, 10, kind='network')
 bvmm.print_tree(mcmc, alphabet, min_samples=0.1, max_counts=3)
 print(counts)
-save_tree(mcmc, 'out/network_eu.pickle')
-# mcmc = load_tree('out/network_eu.pickle')
-filename = 'out/network_eu.net'
+save_tree(mcmc, f'out/network_eu{k}.pickle')
+# mcmc = load_tree(f'out/network_eu{k}.pickle')
+filename = f'out/network_eu{k}.net'
 bvmm.write_tree(mcmc, alphabet, filename, min_samples=0.1)
 
 #%% Radoslaw

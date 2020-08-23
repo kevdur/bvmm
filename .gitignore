@@ -4,3 +4,4 @@ doc/*.dvi
 doc/*.synctex.gz
 doc/*.pdf
 doc/*.xdv
+.ipynb_checkpoints

@@ -69,9 +69,9 @@ data, alphabet = read_data('dat/text_dickens.txt', words=False)
 mcmc, counts = bvmm.mcmc(data, alphabet, 100_000, 10)
 bvmm.print_tree(mcmc, alphabet, min_samples=0.1, max_counts=5)
 print(counts)
-# save_tree(mcmc, 'out/text_2c.pickle')
-# # mcmc = load_tree('out/text_2c.pickle')
-# bvmm.write_tree(mcmc, alphabet, 'out/text_2c.net', min_samples=0.1)
+save_tree(mcmc, 'out/text_2c.pickle')
+# mcmc = load_tree('out/text_2c.pickle')
+bvmm.write_tree(mcmc, alphabet, 'out/text_2c.net', min_samples=0.1)
 
 #%%
 # def sample_counts(v, cs):
@@ -83,7 +83,7 @@ print(counts)
 %%time
 filename = 'dat/text_dickens_10.txt'
 data, alphabet = read_data(filename, words=True)
-mcmc, counts = bvmm.mcmc(data, alphabet, 100_000, 10)
+mcmc, counts = bvmm.mcmc(data, alphabet, 10_000, 10, prior='poisson')
 bvmm.print_tree(mcmc, alphabet, min_samples=0.1, max_counts=5)
 print(counts)
 save_tree(mcmc, 'out/text_2w_10.pickle')

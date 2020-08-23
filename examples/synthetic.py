@@ -3,6 +3,20 @@ import bvmm
 import numpy as np
 import pickle
 
+#%%
+def read_data(filename, words=False, sep='_', max_length=None):
+    with open(filename, 'r') as f:
+        if words:
+            data = [sep+w for w in f.read().split()]
+        else:
+            data = [x for x in sep.join(f.read().split())]
+    if max_length is not None:
+        data = data[:max_length]
+    data, alphabet = bvmm.create_index(data)
+    print('Sequence characters:', len(data))
+    print('Distinct characters:', len(alphabet))
+    return data, alphabet
+
 #%% Binary model ===============================================================
 alphabet = ['0', '1']
 
@@ -49,6 +63,7 @@ data = bvmm.rand_data(root, n)
 #     f.write(''.join(bvmm.apply_alphabet(data, alphabet)))
 
 #%%
+# data, alphabet = read_data('dat/synthetic_2_10000.txt', sep='')
 mcmc, counts = bvmm.mcmc(data, alphabet, 10_000, 10)
 bvmm.print_tree(mcmc, alphabet, min_samples=.01)
 print(counts)
