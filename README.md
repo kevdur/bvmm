@@ -20,5 +20,13 @@ examples of how to use it (and how the data sets were generated and processed)
 in the `examples` directory.
 
 The write-up, which contains all of the motivational, theoretical, and
-implementation details, as well as a summary of results, is available
-[here](doc/bvmm.pdf), in the `doc` directory.
+implementation details, as well as a summary of results, is available in the
+`doc` directory (a direct link is above).
+
+Below, for example, is a dependency tree generated using the text characters in
+_David Copperfield_ by Charles Dickens; the root node corresponds to the empty
+Markov state (generating the next character based on a global marginal
+distribution), its neighbours to single-character states (e.g., 'u' is likely
+after 'q'), and so on.
+
+<img src="doc/figures/text 2c.png" title="Dickens dependency tree" width=720px/>

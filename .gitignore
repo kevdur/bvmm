@@ -2,6 +2,5 @@
 bvmm/__pycache__/
 doc/*.dvi
 doc/*.synctex.gz
-doc/*.pdf
 doc/*.xdv
 .ipynb_checkpoints
