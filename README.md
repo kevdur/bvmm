@@ -1,5 +1,7 @@
 # Variable-order Markov Models and Bayesian Model Selection
 
+_See the [write-up](doc/bvmm.pdf) for full details._
+
 This is a relatively straightforward application of Bayesian inference using
 conjugate priors and Markov chain Monte Carlo (for handling parameter and model
 inference respectively) to simple, sequential variable-order Markov models,
@@ -10,8 +12,6 @@ data sets, which is done by sampling from the posterior model distribution and
 aggregating the dependencies observed in each model. The results are
 interesting, but admittedly more from an interest's-sake perspective than one of
 practical application.
-
-See the [write-up](doc/bvmm.pdf) for full details.
 
 ## Project structure
 
